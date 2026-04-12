@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToString } from "ink";
 import { HistoryView } from "../../src/ui/HistoryView.tsx";
 import { StatsView } from "../../src/ui/StatsView.tsx";
+import { shouldNavigateSlashMatches } from "../../src/ui/TextInput.tsx";
 import type { AggregateStats, Measurement } from "../../src/types.ts";
 
 function stripAnsi(value: string): string {
@@ -52,6 +53,29 @@ function sampleMeasurement(overrides: Partial<Measurement> = {}): Measurement {
 }
 
 describe("REPL views", () => {
+  test("slash suggestions do not steal arrows while browsing history", () => {
+    expect(
+      shouldNavigateSlashMatches(-1, true, {
+        upArrow: true,
+        downArrow: false,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldNavigateSlashMatches(0, true, {
+        upArrow: true,
+        downArrow: false,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldNavigateSlashMatches(1, true, {
+        upArrow: false,
+        downArrow: true,
+      }),
+    ).toBe(false);
+  });
+
   test("HistoryView keeps a single row on narrower terminals", () => {
     const output = withStdoutColumns(80, () =>
       renderToString(<HistoryView rows={[sampleMeasurement()]} />, { columns: 80 }),

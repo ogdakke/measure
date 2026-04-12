@@ -17,6 +17,14 @@ interface TextInputProps {
   slashCommands?: ReplSlashCommand[];
 }
 
+export function shouldNavigateSlashMatches(
+  historyIndex: number,
+  hasSlashMatches: boolean,
+  key: { upArrow: boolean; downArrow: boolean },
+): boolean {
+  return historyIndex === -1 && hasSlashMatches && (key.upArrow || key.downArrow);
+}
+
 export function TextInput({
   prompt,
   onSubmit,
@@ -44,7 +52,7 @@ export function TextInput({
 
   useInput(
     (input, key) => {
-      if (slashMatches.length > 0 && (key.upArrow || key.downArrow)) {
+      if (shouldNavigateSlashMatches(state.historyIndex, slashMatches.length > 0, key)) {
         setSelectedSlashIndex((current) => {
           if (key.upArrow) {
             return current <= 0 ? slashMatches.length - 1 : current - 1;
