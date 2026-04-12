@@ -359,6 +359,8 @@ function printHelp(): void {
 ${formatReplSlashCommandHelpLines().join("\n")}
     Slash menu: type / to browse, Up/Down to select, Enter to run,
                 Tab to prefill commands that take input
+    Editing: arrows/home/end, Ctrl+A/E/B/F/D/W/U/K/L, Ctrl+P/N history,
+             Alt/Option+B/F/D, Alt/Option+Backspace/Delete, Ctrl/Alt+Left/Right
 
   ${dim("Data stored at ~/.measure/ (use 'measure db list' to see databases)")}
 `);

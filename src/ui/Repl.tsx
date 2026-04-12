@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { Box, Text, Static, useApp, renderToString } from "ink";
+import { Box, Text, Static, useApp, useStdout, renderToString } from "ink";
 import type { Database } from "bun:sqlite";
 import { spawnPiped, collectResult } from "../runner/execute-piped.ts";
 import { insertMeasurement } from "../db/queries.ts";
@@ -75,7 +75,8 @@ function CommandItem({
 }
 
 export function Repl({ db, username }: ReplProps) {
-  const { exit } = useApp();
+  const { exit, waitUntilRenderFlush } = useApp();
+  const { write } = useStdout();
   const [currentDb, setCurrentDb] = useState(db);
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -99,6 +100,14 @@ export function Repl({ db, username }: ReplProps) {
     setItems((prev) => [...prev, { id: nextId++, type: "info", output }]);
   }, []);
 
+  const clearScreen = useCallback(() => {
+    setItems([]);
+    void (async () => {
+      await waitUntilRenderFlush();
+      write("\x1B[2J\x1B[3J\x1B[H");
+    })();
+  }, [waitUntilRenderFlush, write]);
+
   const handleSlashCommand = useCallback(
     (input: string) => {
       const { command, args } = parseReplSlashCommand(input);
@@ -112,7 +121,7 @@ export function Repl({ db, username }: ReplProps) {
               ...formatReplSlashCommandHelpLines(),
               "  Slash menu: type / to browse, Up/Down to select, Enter to run,",
               "              Tab to prefill commands that take input",
-              "  Editing: arrows/home/end, Ctrl+A/E/B/F/D/W/U/K, Ctrl+P/N history,",
+              "  Editing: arrows/home/end, Ctrl+A/E/B/F/D/W/U/K/L, Ctrl+P/N history,",
               "           Alt/Option+B/F/D, Alt/Option+Backspace/Delete, Ctrl/Alt+Left/Right",
               "",
             ].join("\n"),
@@ -212,8 +221,7 @@ export function Repl({ db, username }: ReplProps) {
         }
 
         case "clear":
-          process.stdout.write("\x1B[2J\x1B[3J\x1B[H");
-          setItems([]);
+          clearScreen();
           break;
 
         case "exit":
@@ -225,7 +233,7 @@ export function Repl({ db, username }: ReplProps) {
           break;
       }
     },
-    [currentDb, username, addInfoItem, exit],
+    [currentDb, username, addInfoItem, clearScreen, exit],
   );
 
   const handleSubmit = useCallback(
@@ -320,7 +328,7 @@ export function Repl({ db, username }: ReplProps) {
   );
 
   return (
-    <>
+    <Box flexDirection="column">
       {shouldShowReplIntro(hasSubmittedCommand) && (
         <Box flexDirection="column" paddingBottom={1}>
           <Box paddingLeft={2} gap={1}>
@@ -361,12 +369,13 @@ export function Repl({ db, username }: ReplProps) {
           <TextInput
             prompt={getReplPrompt(hasSubmittedCommand)}
             onSubmit={handleSubmit}
+            onClear={clearScreen}
             active={!isRunning}
             history={inputHistory}
             slashCommands={REPL_SLASH_COMMANDS}
           />
         )}
       </Box>
-    </>
+    </Box>
   );
 }

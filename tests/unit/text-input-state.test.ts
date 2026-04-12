@@ -166,6 +166,20 @@ describe("text input state", () => {
     });
   });
 
+  test("supports ctrl+l to clear the screen without discarding input", () => {
+    const state = typeText(createTextInputState(), "draft command");
+    const result = applyTextInputKey(
+      state,
+      "l",
+      key({ ctrl: true }),
+      [],
+    );
+
+    expect(result.clearScreen).toBe(true);
+    expect(result.submit).toBeUndefined();
+    expect(result.state).toEqual(state);
+  });
+
   test("preserves history browsing while moving the cursor and restores drafts", () => {
     const history = ["git status", "bun test"];
 

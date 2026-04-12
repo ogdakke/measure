@@ -24,6 +24,7 @@ export interface TextInputKey {
 export interface TextInputResult {
   state: TextInputState;
   submit?: string;
+  clearScreen?: boolean;
 }
 
 const INITIAL_STATE: TextInputState = {
@@ -47,6 +48,13 @@ export function applyTextInputKey(
     return {
       state: createTextInputState(),
       submit: state.value,
+    };
+  }
+
+  if (key.ctrl && input === "l") {
+    return {
+      state,
+      clearScreen: true,
     };
   }
 

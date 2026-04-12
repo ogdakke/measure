@@ -37,6 +37,8 @@ export function HelpView() {
       ))}
       <Text> Slash menu: type / to browse, Up/Down to select, Enter to run</Text>
       <Text> Tab prefills commands that take input</Text>
+      <Text> Editing: arrows/home/end, Ctrl+A/E/B/F/D/W/U/K/L, Ctrl+P/N history</Text>
+      <Text> Alt/Option+B/F/D, Alt/Option+Backspace/Delete, Ctrl/Alt+Left/Right</Text>
       <Text />
       <Text dimColor>Data stored at ~/.measure/ (use 'measure db list' to see databases)</Text>
     </Box>

@@ -12,6 +12,7 @@ import {
 interface TextInputProps {
   prompt: string;
   onSubmit: (value: string) => void;
+  onClear?: () => void;
   active?: boolean;
   history?: string[];
   slashCommands?: ReplSlashCommand[];
@@ -28,6 +29,7 @@ export function shouldNavigateSlashMatches(
 export function TextInput({
   prompt,
   onSubmit,
+  onClear,
   active = true,
   history = [],
   slashCommands = [],
@@ -103,7 +105,22 @@ export function TextInput({
         return;
       }
 
-      setState((current) => applyTextInputKey(current, input, key, history).state);
+      const result = applyTextInputKey(state, input, key, history);
+      if (result.submit !== undefined) {
+        setState(result.state);
+        setSelectedSlashIndex(0);
+        onSubmit(result.submit);
+        return;
+      }
+
+      if (result.clearScreen) {
+        setState(result.state);
+        setSelectedSlashIndex(0);
+        onClear?.();
+        return;
+      }
+
+      setState(result.state);
       if (
         input ||
         key.backspace ||
