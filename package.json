@@ -1,6 +1,6 @@
 {
   "name": "@ogdakke/measure",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Measure and compare command execution times across machines",
   "homepage": "https://github.com/ogdakke/measure",
   "license": "MIT",
