@@ -199,8 +199,7 @@ function moveCursorWordRight(state: TextInputState): TextInputState {
 }
 
 function insertText(state: TextInputState, text: string): TextInputState {
-  const nextValue =
-    state.value.slice(0, state.cursor) + text + state.value.slice(state.cursor);
+  const nextValue = state.value.slice(0, state.cursor) + text + state.value.slice(state.cursor);
 
   return editState(state, nextValue, state.cursor + text.length);
 }

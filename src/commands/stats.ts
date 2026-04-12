@@ -44,8 +44,7 @@ export function aggregate(measurements: Measurement[]): AggregateStats[] {
       count % 2 === 0
         ? (durations[count / 2 - 1]! + durations[count / 2]!) / 2
         : durations[Math.floor(count / 2)]!;
-    const variance =
-      durations.reduce((acc, v) => acc + (v - mean) ** 2, 0) / count;
+    const variance = durations.reduce((acc, v) => acc + (v - mean) ** 2, 0) / count;
     const successes = group.filter((m) => m.exitCode === 0).length;
 
     results.push({

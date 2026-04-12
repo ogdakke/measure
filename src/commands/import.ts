@@ -19,9 +19,7 @@ export function importCommand(
   for (const file of files) {
     const absPath = resolve(file);
     if (!existsSync(absPath)) {
-      return Result.err(
-        new ExportError({ message: `File not found: ${absPath}` }),
-      );
+      return Result.err(new ExportError({ message: `File not found: ${absPath}` }));
     }
 
     let result: Result<ImportResult, DatabaseError | ExportError>;
@@ -46,10 +44,7 @@ export function importCommand(
   return Result.ok(results);
 }
 
-function importFromDb(
-  targetDb: Database,
-  sourcePath: string,
-): Result<ImportResult, DatabaseError> {
+function importFromDb(targetDb: Database, sourcePath: string): Result<ImportResult, DatabaseError> {
   return Result.try({
     try: () => {
       // Verify the source is a valid measure database
@@ -109,9 +104,7 @@ function importFromDb(
           .get()!.c;
 
         const sourceCount = targetDb
-          .query<{ c: number }, []>(
-            "SELECT COUNT(*) as c FROM source.measurements",
-          )
+          .query<{ c: number }, []>("SELECT COUNT(*) as c FROM source.measurements")
           .get()!.c;
 
         const imported = countAfter - countBefore;
@@ -124,8 +117,7 @@ function importFromDb(
         targetDb.run("DETACH DATABASE source");
       }
     },
-    catch: (e) =>
-      new DatabaseError({ message: `Failed to import from ${sourcePath}: ${e}` }),
+    catch: (e) => new DatabaseError({ message: `Failed to import from ${sourcePath}: ${e}` }),
   });
 }
 
@@ -144,8 +136,7 @@ function importFromJson(
 
       return importRows(db, filePath, data, "json");
     },
-    catch: (e) =>
-      new ExportError({ message: `Failed to import JSON from ${filePath}: ${e}` }),
+    catch: (e) => new ExportError({ message: `Failed to import JSON from ${filePath}: ${e}` }),
   });
 }
 
@@ -174,8 +165,7 @@ function importFromCsv(
 
       return importRows(db, filePath, rows, "csv");
     },
-    catch: (e) =>
-      new ExportError({ message: `Failed to import CSV from ${filePath}: ${e}` }),
+    catch: (e) => new ExportError({ message: `Failed to import CSV from ${filePath}: ${e}` }),
   });
 }
 
@@ -266,7 +256,10 @@ function importRows(
       $bench_group, $created_at
     )`);
 
-  const checkStmt = db.query<{ c: number }, { command: string; hostname: string; username: string; created_at: string }>(
+  const checkStmt = db.query<
+    { c: number },
+    { command: string; hostname: string; username: string; created_at: string }
+  >(
     `SELECT COUNT(*) as c FROM measurements
      WHERE command = $command AND hostname = $hostname AND username = $username AND created_at = $created_at`,
   );

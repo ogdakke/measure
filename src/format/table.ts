@@ -7,10 +7,7 @@ export interface Column {
   maxWidth?: number;
 }
 
-export function renderTable(
-  columns: Column[],
-  rows: Record<string, string>[],
-): string {
+export function renderTable(columns: Column[], rows: Record<string, string>[]): string {
   if (rows.length === 0) return dim("  No data.");
 
   const termWidth = process.stdout.columns ?? 80;
@@ -69,9 +66,11 @@ export function renderTable(
       .join(" ".repeat(gap)),
   );
 
-  return [" ".repeat(indent) + header, " ".repeat(indent) + separator, ...body.map((r) => " ".repeat(indent) + r)].join(
-    "\n",
-  );
+  return [
+    " ".repeat(indent) + header,
+    " ".repeat(indent) + separator,
+    ...body.map((r) => " ".repeat(indent) + r),
+  ].join("\n");
 }
 
 function stripAnsi(str: string): string {

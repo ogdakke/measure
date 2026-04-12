@@ -60,7 +60,13 @@ export async function benchCommand(
     });
     if (saved.isErr()) return saved;
 
-    onProgress?.({ type: "run", index: i, total: iterations, durationNs: execution.durationNs, exitCode: execution.exitCode });
+    onProgress?.({
+      type: "run",
+      index: i,
+      total: iterations,
+      durationNs: execution.durationNs,
+      exitCode: execution.exitCode,
+    });
   }
 
   const stats = computeStats(runs.map((r) => r.durationNs));
@@ -83,8 +89,7 @@ export function computeStats(values: number[]): BenchStats {
       ? (sorted[count / 2 - 1]! + sorted[count / 2]!) / 2
       : sorted[Math.floor(count / 2)]!;
 
-  const variance =
-    sorted.reduce((acc, v) => acc + (v - mean) ** 2, 0) / count;
+  const variance = sorted.reduce((acc, v) => acc + (v - mean) ** 2, 0) / count;
   const stddev = Math.sqrt(variance);
 
   const p5 = sorted[Math.floor(count * 0.05)] ?? sorted[0]!;

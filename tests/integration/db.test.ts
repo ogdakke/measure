@@ -33,9 +33,7 @@ describe("connection helpers", () => {
   });
 
   test("dbNameToPath maps other names to <name>.db", () => {
-    expect(dbNameToPath("team-april")).toBe(
-      join(getMeasureDir(), "team-april.db"),
-    );
+    expect(dbNameToPath("team-april")).toBe(join(getMeasureDir(), "team-april.db"));
   });
 
   test("pathToDbName maps measure.db to 'default'", () => {
@@ -43,9 +41,7 @@ describe("connection helpers", () => {
   });
 
   test("pathToDbName maps <name>.db to name", () => {
-    expect(pathToDbName(join(getMeasureDir(), "team-april.db"))).toBe(
-      "team-april",
-    );
+    expect(pathToDbName(join(getMeasureDir(), "team-april.db"))).toBe("team-april");
   });
 
   test("getActiveDbName defaults to 'default'", () => {

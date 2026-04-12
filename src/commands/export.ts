@@ -25,16 +25,14 @@ export function exportCommand(
   if (result.isErr()) return result;
 
   const measurements = result.value;
-  const content =
-    format === "json" ? toJson(measurements) : toCsv(measurements);
+  const content = format === "json" ? toJson(measurements) : toCsv(measurements);
 
   if (output) {
     const writeResult = Result.try({
       try: () => {
         require("node:fs").writeFileSync(output, content, "utf-8");
       },
-      catch: (e) =>
-        new ExportError({ message: `Failed to write to ${output}: ${e}` }),
+      catch: (e) => new ExportError({ message: `Failed to write to ${output}: ${e}` }),
     });
     if (writeResult.isErr()) return writeResult;
     return Result.ok({ count: measurements.length, path: output });

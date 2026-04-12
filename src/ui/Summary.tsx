@@ -14,11 +14,16 @@ export function Summary({ exec }: SummaryProps) {
   return (
     <Box paddingLeft={2} gap={1}>
       <Text color={ok ? "green" : "red"}>{ok ? "✓" : "✗"}</Text>
-      <Text bold color={durationColor}>{formatDuration(exec.durationNs)}</Text>
+      <Text bold color={durationColor}>
+        {formatDuration(exec.durationNs)}
+      </Text>
       {exec.cpuUserUs != null && exec.cpuSystemUs != null && (
         <>
           <Text dimColor>|</Text>
-          <Text>cpu: {formatMicroseconds(exec.cpuUserUs)} user, {formatMicroseconds(exec.cpuSystemUs)} sys</Text>
+          <Text>
+            cpu: {formatMicroseconds(exec.cpuUserUs)} user, {formatMicroseconds(exec.cpuSystemUs)}{" "}
+            sys
+          </Text>
         </>
       )}
       {exec.maxRss != null && (
@@ -29,7 +34,9 @@ export function Summary({ exec }: SummaryProps) {
       )}
       <Text dimColor>|</Text>
       <Text>exit: </Text>
-      <Text color={ok ? undefined : "red"} dimColor={ok}>{String(exec.exitCode)}</Text>
+      <Text color={ok ? undefined : "red"} dimColor={ok}>
+        {String(exec.exitCode)}
+      </Text>
     </Box>
   );
 }

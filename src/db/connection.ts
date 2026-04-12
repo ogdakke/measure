@@ -89,8 +89,7 @@ export function getDatabase(name?: string): Result<Database, DatabaseError> {
       instances.set(dbName, db);
       return db;
     },
-    catch: (e) =>
-      new DatabaseError({ message: `Failed to open database: ${e}` }),
+    catch: (e) => new DatabaseError({ message: `Failed to open database: ${e}` }),
   });
 }
 
@@ -101,8 +100,7 @@ export function openDatabaseAt(path: string): Result<Database, DatabaseError> {
       const db = new Database(path, { readonly: true, strict: true });
       return db;
     },
-    catch: (e) =>
-      new DatabaseError({ message: `Failed to open database at ${path}: ${e}` }),
+    catch: (e) => new DatabaseError({ message: `Failed to open database at ${path}: ${e}` }),
   });
 }
 

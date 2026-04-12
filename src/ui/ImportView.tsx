@@ -23,7 +23,9 @@ export function ImportView({ results }: ImportViewProps) {
       <Text />
       <Box paddingLeft={2} gap={1}>
         <Text bold>Total:</Text>
-        <Text>{totalImported} imported from {results.length} file{results.length === 1 ? "" : "s"}</Text>
+        <Text>
+          {totalImported} imported from {results.length} file{results.length === 1 ? "" : "s"}
+        </Text>
         {totalSkipped > 0 && <Text dimColor>({totalSkipped} skipped as duplicates)</Text>}
       </Box>
     </Box>

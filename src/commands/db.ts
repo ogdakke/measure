@@ -29,9 +29,7 @@ export function dbCreateCommand(
   name: string,
 ): Result<{ name: string; path: string }, DatabaseError> {
   if (databaseExists(name)) {
-    return Result.err(
-      new DatabaseError({ message: `Database '${name}' already exists.` }),
-    );
+    return Result.err(new DatabaseError({ message: `Database '${name}' already exists.` }));
   }
 
   const dbResult = getDatabase(name);

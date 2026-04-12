@@ -2,9 +2,7 @@ import { Result } from "better-result";
 import { ParseError } from "./errors.ts";
 import type { ParsedCommand } from "./types.ts";
 
-export function parseArgs(
-  argv: string[],
-): Result<ParsedCommand, ParseError> {
+export function parseArgs(argv: string[]): Result<ParsedCommand, ParseError> {
   const args = argv.slice(2);
 
   if (args.length === 0) return Result.ok({ command: "repl" });
@@ -12,8 +10,7 @@ export function parseArgs(
   const sub = args[0]!;
 
   if (sub === "--help" || sub === "-h") return Result.ok({ command: "help" });
-  if (sub === "--version" || sub === "-v")
-    return Result.ok({ command: "version" });
+  if (sub === "--version" || sub === "-v") return Result.ok({ command: "version" });
 
   switch (sub) {
     case "run":
@@ -43,9 +40,7 @@ export function parseArgs(
 
 function parseRun(args: string[]): Result<ParsedCommand, ParseError> {
   if (args.length === 0) {
-    return Result.err(
-      new ParseError({ message: "Usage: measure run <command...>" }),
-    );
+    return Result.err(new ParseError({ message: "Usage: measure run <command...>" }));
   }
   return Result.ok({ command: "run", args });
 }
@@ -60,17 +55,13 @@ function parseBench(args: string[]): Result<ParsedCommand, ParseError> {
     if (arg === "-n" || arg === "--iterations") {
       const val = args[++i];
       if (!val || isNaN(parseInt(val, 10))) {
-        return Result.err(
-          new ParseError({ message: `Expected number after ${arg}` }),
-        );
+        return Result.err(new ParseError({ message: `Expected number after ${arg}` }));
       }
       iterations = parseInt(val, 10);
     } else if (arg === "--warmup") {
       const val = args[++i];
       if (!val || isNaN(parseInt(val, 10))) {
-        return Result.err(
-          new ParseError({ message: "Expected number after --warmup" }),
-        );
+        return Result.err(new ParseError({ message: "Expected number after --warmup" }));
       }
       warmup = parseInt(val, 10);
     } else {
@@ -170,18 +161,20 @@ function parseDb(args: string[]): Result<ParsedCommand, ParseError> {
   if (action === "create") {
     const name = args[1];
     if (!name) {
-      return Result.err(
-        new ParseError({ message: "Usage: measure db create <name>" }),
-      );
+      return Result.err(new ParseError({ message: "Usage: measure db create <name>" }));
     }
     if (name === "default") {
       return Result.err(
-        new ParseError({ message: "Cannot create a database named 'default' — it already exists." }),
+        new ParseError({
+          message: "Cannot create a database named 'default' — it already exists.",
+        }),
       );
     }
     if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
       return Result.err(
-        new ParseError({ message: "Database name must only contain letters, numbers, hyphens, and underscores." }),
+        new ParseError({
+          message: "Database name must only contain letters, numbers, hyphens, and underscores.",
+        }),
       );
     }
     return Result.ok({ command: "db", action: "create", name });
@@ -190,9 +183,7 @@ function parseDb(args: string[]): Result<ParsedCommand, ParseError> {
   if (action === "use") {
     const name = args[1];
     if (!name) {
-      return Result.err(
-        new ParseError({ message: "Usage: measure db use <name>" }),
-      );
+      return Result.err(new ParseError({ message: "Usage: measure db use <name>" }));
     }
     return Result.ok({ command: "db", action: "use", name });
   }
@@ -210,7 +201,8 @@ function parseImport(args: string[]): Result<ParsedCommand, ParseError> {
   if (files.length === 0) {
     return Result.err(
       new ParseError({
-        message: "Usage: measure import <file1.db|.csv|.json> [file2...]\nSupported formats: .db (SQLite), .csv, .json",
+        message:
+          "Usage: measure import <file1.db|.csv|.json> [file2...]\nSupported formats: .db (SQLite), .csv, .json",
       }),
     );
   }

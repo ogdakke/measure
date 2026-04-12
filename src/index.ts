@@ -33,9 +33,7 @@ if (cmd.command === "help") {
 }
 
 if (cmd.command === "version") {
-  const pkg = await Bun.file(
-    new URL("../package.json", import.meta.url).pathname,
-  ).json();
+  const pkg = await Bun.file(new URL("../package.json", import.meta.url).pathname).json();
   console.log(`measure v${pkg.version}`);
   process.exit(0);
 }
@@ -94,10 +92,14 @@ if (cmd.command === "import") {
   console.log();
   for (const r of results) {
     const skipNote = r.skipped > 0 ? ` ${dim(`(${r.skipped} duplicates skipped)`)}` : "";
-    console.log(`  ${green("+")} ${cyan(require("node:path").basename(r.file))}: ${r.imported} measurements imported${skipNote}`);
+    console.log(
+      `  ${green("+")} ${cyan(require("node:path").basename(r.file))}: ${r.imported} measurements imported${skipNote}`,
+    );
   }
   console.log();
-  console.log(`  ${bold("Total:")} ${totalImported} imported from ${results.length} file${results.length === 1 ? "" : "s"}${totalSkipped > 0 ? ` ${dim(`(${totalSkipped} skipped as duplicates)`)}` : ""}`);
+  console.log(
+    `  ${bold("Total:")} ${totalImported} imported from ${results.length} file${results.length === 1 ? "" : "s"}${totalSkipped > 0 ? ` ${dim(`(${totalSkipped} skipped as duplicates)`)}` : ""}`,
+  );
   console.log();
   process.exit(0);
 }
@@ -161,7 +163,9 @@ switch (cmd.command) {
     }
     const { stats, command, iterations, warmup } = result.value;
     console.log();
-    console.log(`  ${bold("Benchmark:")} ${cyan(command)} ${dim(`(${iterations} runs${warmup > 0 ? `, ${warmup} warmup` : ""})`)}`);
+    console.log(
+      `  ${bold("Benchmark:")} ${cyan(command)} ${dim(`(${iterations} runs${warmup > 0 ? `, ${warmup} warmup` : ""})`)}`,
+    );
     console.log();
     console.log(`  ${bold("Results:")}`);
     console.log(`  ${dim("Mean:  ")} ${formatDuration(stats.mean)}`);
@@ -256,7 +260,14 @@ switch (cmd.command) {
   }
 
   case "export": {
-    const result = exportCommand(db, cmd.format, cmd.project, cmd.commandFilter, cmd.host, cmd.output);
+    const result = exportCommand(
+      db,
+      cmd.format,
+      cmd.project,
+      cmd.commandFilter,
+      cmd.host,
+      cmd.output,
+    );
     if (result.isErr()) {
       console.error(red(`  Error: ${result.error.message}`));
       process.exit(1);
@@ -284,14 +295,27 @@ switch (cmd.command) {
   }
 }
 
-function formatSummary(m: { exitCode: number; durationNs: number; cpuUserUs: number | null; cpuSystemUs: number | null; maxRss: number | null }): string {
+function formatSummary(m: {
+  exitCode: number;
+  durationNs: number;
+  cpuUserUs: number | null;
+  cpuSystemUs: number | null;
+  maxRss: number | null;
+}): string {
   const ok = m.exitCode === 0;
   const icon = ok ? green("✓") : red("✗");
   const s = m.durationNs / 1_000_000_000;
-  const duration = s < 5 ? green(formatDuration(m.durationNs)) : s < 30 ? yellow(formatDuration(m.durationNs)) : red(formatDuration(m.durationNs));
+  const duration =
+    s < 5
+      ? green(formatDuration(m.durationNs))
+      : s < 30
+        ? yellow(formatDuration(m.durationNs))
+        : red(formatDuration(m.durationNs));
   const parts = [`  ${icon} ${bold(duration)}`];
   if (m.cpuUserUs != null && m.cpuSystemUs != null) {
-    parts.push(`cpu: ${formatMicroseconds(m.cpuUserUs)} user, ${formatMicroseconds(m.cpuSystemUs)} sys`);
+    parts.push(
+      `cpu: ${formatMicroseconds(m.cpuUserUs)} user, ${formatMicroseconds(m.cpuSystemUs)} sys`,
+    );
   }
   if (m.maxRss != null) {
     parts.push(`mem: ${formatBytes(m.maxRss)}`);

@@ -1,12 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { Result } from "better-result";
 import { DatabaseError } from "../errors.ts";
-import type {
-  Measurement,
-  SystemInfo,
-  ExecutionResult,
-  ExportFilters,
-} from "../types.ts";
+import type { Measurement, SystemInfo, ExecutionResult, ExportFilters } from "../types.ts";
 
 /** The raw row shape returned by SQLite (snake_case column names). */
 interface MeasurementRow {
@@ -31,23 +26,14 @@ interface MeasurementRow {
   created_at: string;
 }
 
-export function getConfig(
-  db: Database,
-  key: string,
-): string | null {
+export function getConfig(db: Database, key: string): string | null {
   const row = db
-    .query<{ value: string }, { key: string }>(
-      "SELECT value FROM config WHERE key = $key",
-    )
+    .query<{ value: string }, { key: string }>("SELECT value FROM config WHERE key = $key")
     .get({ key });
   return row?.value ?? null;
 }
 
-export function setConfig(
-  db: Database,
-  key: string,
-  value: string,
-): void {
+export function setConfig(db: Database, key: string, value: string): void {
   db.query<void, { key: string; value: string }>(
     "INSERT OR REPLACE INTO config (key, value) VALUES ($key, $value)",
   ).run({ key, value });
@@ -126,8 +112,7 @@ export function insertMeasurement(
 
       return rowToMeasurement(row);
     },
-    catch: (e) =>
-      new DatabaseError({ message: `Failed to insert measurement: ${e}` }),
+    catch: (e) => new DatabaseError({ message: `Failed to insert measurement: ${e}` }),
   });
 }
 
@@ -145,8 +130,7 @@ export function getHistory(
         .all({ ...bindings, limit: filters.limit });
       return rows.map(rowToMeasurement);
     },
-    catch: (e) =>
-      new DatabaseError({ message: `Failed to query history: ${e}` }),
+    catch: (e) => new DatabaseError({ message: `Failed to query history: ${e}` }),
   });
 }
 
@@ -164,8 +148,7 @@ export function getStatsData(
         .all(bindings);
       return rows.map(rowToMeasurement);
     },
-    catch: (e) =>
-      new DatabaseError({ message: `Failed to query stats: ${e}` }),
+    catch: (e) => new DatabaseError({ message: `Failed to query stats: ${e}` }),
   });
 }
 
@@ -183,8 +166,7 @@ export function getExportData(
         .all(bindings);
       return rows.map(rowToMeasurement);
     },
-    catch: (e) =>
-      new DatabaseError({ message: `Failed to query export data: ${e}` }),
+    catch: (e) => new DatabaseError({ message: `Failed to query export data: ${e}` }),
   });
 }
 

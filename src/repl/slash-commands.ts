@@ -1,16 +1,7 @@
 export type ReplSlashCommandArgMode = "none" | "optional" | "required";
 
 export interface ReplSlashCommand {
-  key:
-    | "help"
-    | "history"
-    | "stats"
-    | "export"
-    | "import"
-    | "db"
-    | "system"
-    | "clear"
-    | "exit";
+  key: "help" | "history" | "stats" | "export" | "import" | "db" | "system" | "clear" | "exit";
   command: string;
   aliases?: string[];
   helpLabel: string;

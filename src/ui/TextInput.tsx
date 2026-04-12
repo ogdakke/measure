@@ -96,7 +96,15 @@ export function TextInput({
       }
 
       setState((current) => applyTextInputKey(current, input, key, history).state);
-      if (input || key.backspace || key.delete || key.leftArrow || key.rightArrow || key.home || key.end) {
+      if (
+        input ||
+        key.backspace ||
+        key.delete ||
+        key.leftArrow ||
+        key.rightArrow ||
+        key.home ||
+        key.end
+      ) {
         setSelectedSlashIndex(0);
       }
     },

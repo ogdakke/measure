@@ -2,8 +2,7 @@ import { test, expect, describe } from "bun:test";
 import { parseArgs } from "../../src/cli.ts";
 import { Result } from "better-result";
 
-const argv = (...args: string[]) =>
-  parseArgs(["/path/to/bun", "/path/to/measure", ...args]);
+const argv = (...args: string[]) => parseArgs(["/path/to/bun", "/path/to/measure", ...args]);
 
 describe("parseArgs", () => {
   test("no arguments enters REPL mode", () => {
@@ -81,15 +80,7 @@ describe("parseArgs", () => {
   });
 
   test("history with filters", () => {
-    const result = argv(
-      "history",
-      "--limit",
-      "5",
-      "--project",
-      "my-app",
-      "--command",
-      "build",
-    );
+    const result = argv("history", "--limit", "5", "--project", "my-app", "--command", "build");
     expect(result.unwrap()).toEqual({
       command: "history",
       limit: 5,
@@ -121,15 +112,7 @@ describe("parseArgs", () => {
   });
 
   test("export with all flags", () => {
-    const result = argv(
-      "export",
-      "--format",
-      "json",
-      "--project",
-      "app",
-      "-o",
-      "out.json",
-    );
+    const result = argv("export", "--format", "json", "--project", "app", "-o", "out.json");
     expect(result.unwrap()).toEqual({
       command: "export",
       format: "json",

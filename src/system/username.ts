@@ -28,13 +28,10 @@ function promptUsername(fallback: string): Promise<string> {
       output: process.stdout,
     });
 
-    rl.question(
-      `  Enter your name ${dim(`(default: ${fallback})`)}:  `,
-      (answer) => {
-        rl.close();
-        const trimmed = answer.trim();
-        resolve(trimmed || fallback);
-      },
-    );
+    rl.question(`  Enter your name ${dim(`(default: ${fallback})`)}:  `, (answer) => {
+      rl.close();
+      const trimmed = answer.trim();
+      resolve(trimmed || fallback);
+    });
   });
 }

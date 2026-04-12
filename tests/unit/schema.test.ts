@@ -23,9 +23,7 @@ describe("schema migration", () => {
     const db = new Database(":memory:", { strict: true });
     migrate(db);
 
-    const row = db
-      .query<{ v: number }, []>("SELECT MAX(version) as v FROM schema_version")
-      .get();
+    const row = db.query<{ v: number }, []>("SELECT MAX(version) as v FROM schema_version").get();
     expect(row?.v).toBe(1);
   });
 
@@ -34,9 +32,7 @@ describe("schema migration", () => {
     migrate(db);
     migrate(db); // should not throw
 
-    const row = db
-      .query<{ v: number }, []>("SELECT MAX(version) as v FROM schema_version")
-      .get();
+    const row = db.query<{ v: number }, []>("SELECT MAX(version) as v FROM schema_version").get();
     expect(row?.v).toBe(1);
   });
 });

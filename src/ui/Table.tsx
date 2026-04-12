@@ -17,8 +17,12 @@ export function Table({ columns, rows }: TableProps) {
     <Box flexDirection="column" paddingLeft={2} width="100%">
       <Box width="100%">
         {columns.map((col) => (
-          <Box key={col.key} width={col.width} justifyContent={col.align === "right" ? "flex-end" : "flex-start"}>
-            <Text bold>{col.label}  </Text>
+          <Box
+            key={col.key}
+            width={col.width}
+            justifyContent={col.align === "right" ? "flex-end" : "flex-start"}
+          >
+            <Text bold>{col.label} </Text>
           </Box>
         ))}
       </Box>
@@ -32,8 +36,12 @@ export function Table({ columns, rows }: TableProps) {
       {rows.map((row, i) => (
         <Box key={i} width="100%">
           {columns.map((col) => (
-            <Box key={col.key} width={col.width} justifyContent={col.align === "right" ? "flex-end" : "flex-start"}>
-              <Text>{row[col.key] ?? ""}  </Text>
+            <Box
+              key={col.key}
+              width={col.width}
+              justifyContent={col.align === "right" ? "flex-end" : "flex-start"}
+            >
+              <Text>{row[col.key] ?? ""} </Text>
             </Box>
           ))}
         </Box>

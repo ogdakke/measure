@@ -1,5 +1,4 @@
-const enabled =
-  process.stdout.isTTY === true && !("NO_COLOR" in process.env);
+const enabled = process.stdout.isTTY === true && !("NO_COLOR" in process.env);
 
 function wrap(code: number, resetCode: number) {
   if (!enabled) return (s: string) => s;

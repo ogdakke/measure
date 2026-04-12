@@ -2,19 +2,17 @@
   "name": "@ogdakke/measure",
   "version": "0.1.0",
   "description": "Measure and compare command execution times across machines",
-  "type": "module",
-  "author": {
-    "email": "dw@danielwargh.com",
-    "name": "Daniel Wargh",
-    "url": "https://danielwargh.com"
-  },
   "homepage": "https://github.com/ogdakke/measure",
   "license": "MIT",
+  "author": {
+    "name": "Daniel Wargh",
+    "email": "dw@danielwargh.com",
+    "url": "https://danielwargh.com"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/ogdakke/measure"
   },
-  "readme": "README.md",
   "bin": {
     "measure": "./src/index.ts"
   },
@@ -23,6 +21,11 @@
     "src/**/*.tsx",
     "README.md"
   ],
+  "os": [
+    "darwin",
+    "win32"
+  ],
+  "type": "module",
   "publishConfig": {
     "access": "public"
   },
@@ -30,15 +33,11 @@
     "dev": "bun run src/index.ts",
     "test": "bun test",
     "lint": "oxlint",
-    "fmt": "oxfmt --write src/"
+    "fmt": "oxfmt .",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish"
   },
-  "engines": {
-    "bun": ">=1.3.12"
-  },
-  "os": [
-    "darwin",
-    "win32"
-  ],
   "dependencies": {
     "better-result": "^2.8.2",
     "ink": "7",
@@ -52,5 +51,9 @@
     "oxfmt": "^0.44.0",
     "oxlint": "^1.59.0",
     "oxlint-tsgolint": "^0.20.0"
-  }
+  },
+  "engines": {
+    "bun": ">=1.3.12"
+  },
+  "readme": "README.md"
 }

@@ -8,9 +8,7 @@ export function getSystemInfo(username: string): SystemInfo {
 
   const cpuList = cpus();
   const shell =
-    platform() === "win32"
-      ? (process.env.ComSpec ?? null)
-      : (process.env.SHELL ?? null);
+    platform() === "win32" ? (process.env.ComSpec ?? null) : (process.env.SHELL ?? null);
 
   cached = {
     os: platform(),

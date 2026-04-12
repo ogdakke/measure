@@ -9,9 +9,7 @@ export class CommandError extends TaggedError("CommandError")<{
   message: string;
 }>() {}
 
-export class ProjectDetectionError extends TaggedError(
-  "ProjectDetectionError",
-)<{
+export class ProjectDetectionError extends TaggedError("ProjectDetectionError")<{
   message: string;
 }>() {}
 

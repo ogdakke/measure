@@ -59,9 +59,9 @@ export function migrate(db: Database): void {
     )
   `);
 
-  const row = db.query("SELECT MAX(version) as v FROM schema_version").get() as
-    | { v: number | null }
-    | null;
+  const row = db.query("SELECT MAX(version) as v FROM schema_version").get() as {
+    v: number | null;
+  } | null;
   const currentVersion = row?.v ?? 0;
 
   for (let i = currentVersion; i < migrations.length; i++) {

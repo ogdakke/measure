@@ -52,9 +52,7 @@ describe("exportCommand", () => {
     const result = exportCommand(db, "json", undefined, undefined, undefined, outPath);
     expect(Result.isOk(result)).toBe(true);
 
-    const content = JSON.parse(
-      require("node:fs").readFileSync(outPath, "utf-8"),
-    );
+    const content = JSON.parse(require("node:fs").readFileSync(outPath, "utf-8"));
     expect(content.length).toBe(1);
     expect(content[0].command).toBe("echo test");
     expect(content[0].project).toBe("app");

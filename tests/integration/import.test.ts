@@ -38,7 +38,9 @@ beforeEach(() => {
   tmpDir = mkdtempSync(join(tmpdir(), "measure-import-test-"));
 });
 
-function createSourceDb(measurements: Array<{ command: string; hostname: string; username: string }>): string {
+function createSourceDb(
+  measurements: Array<{ command: string; hostname: string; username: string }>,
+): string {
   const path = join(tmpDir, `source-${Date.now()}-${Math.random().toString(36).slice(2)}.db`);
   const db = new Database(path, { create: true, strict: true });
   migrate(db);
@@ -88,9 +90,7 @@ describe("importCommand — .db files", () => {
     const source1 = createSourceDb([
       { command: "echo alice", hostname: "alice-mac", username: "alice" },
     ]);
-    const source2 = createSourceDb([
-      { command: "echo bob", hostname: "bob-pc", username: "bob" },
-    ]);
+    const source2 = createSourceDb([{ command: "echo bob", hostname: "bob-pc", username: "bob" }]);
 
     const result = importCommand(targetDb, [source1, source2]);
     expect(Result.isOk(result)).toBe(true);

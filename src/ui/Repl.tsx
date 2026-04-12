@@ -55,9 +55,7 @@ export function Repl({ db, username }: ReplProps) {
 
   useEffect(() => {
     (async () => {
-      const pkg = await Bun.file(
-        new URL("../../package.json", import.meta.url).pathname,
-      ).json();
+      const pkg = await Bun.file(new URL("../../package.json", import.meta.url).pathname).json();
       setVersion(pkg.version ?? "0.1.0");
     })();
   }, []);
@@ -325,7 +323,7 @@ export function Repl({ db, username }: ReplProps) {
 
       <Box>
         {isRunning ? (
-          <Text dimColor>  Running: {runningCommand}...</Text>
+          <Text dimColor> Running: {runningCommand}...</Text>
         ) : (
           <TextInput
             prompt="measure > "

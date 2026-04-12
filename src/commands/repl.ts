@@ -15,24 +15,15 @@ import { bold, dim, cyan, green, red, yellow } from "../format/colors.ts";
 import { formatDuration, formatBytes, formatMicroseconds } from "../format/units.ts";
 import { renderTable, type Column } from "../format/table.ts";
 import type { ExecutionResult } from "../types.ts";
-import {
-  formatReplSlashCommandHelpLines,
-  parseReplSlashCommand,
-} from "../repl/slash-commands.ts";
+import { formatReplSlashCommandHelpLines, parseReplSlashCommand } from "../repl/slash-commands.ts";
 
-export async function startRepl(
-  db: Database,
-  username: string,
-): Promise<void> {
+export async function startRepl(db: Database, username: string): Promise<void> {
   const system = getSystemInfo(username);
   const project = detectProject(process.cwd());
 
   const version =
-    (
-      await Bun.file(
-        new URL("../../package.json", import.meta.url).pathname,
-      ).json()
-    ).version ?? "0.1.0";
+    (await Bun.file(new URL("../../package.json", import.meta.url).pathname).json()).version ??
+    "0.1.0";
 
   console.log();
   console.log(
@@ -99,11 +90,7 @@ export async function startRepl(
   });
 }
 
-function handleSlashCommand(
-  db: Database,
-  username: string,
-  input: string,
-): void {
+function handleSlashCommand(db: Database, username: string, input: string): void {
   const { command, args } = parseReplSlashCommand(input);
 
   switch (command?.key) {
@@ -229,10 +216,14 @@ function handleSlashCommand(
       console.log();
       for (const r of results) {
         const skipNote = r.skipped > 0 ? ` ${dim(`(${r.skipped} duplicates skipped)`)}` : "";
-        console.log(`  ${green("+")} ${cyan(require("node:path").basename(r.file))}: ${r.imported} measurements imported${skipNote}`);
+        console.log(
+          `  ${green("+")} ${cyan(require("node:path").basename(r.file))}: ${r.imported} measurements imported${skipNote}`,
+        );
       }
       console.log();
-      console.log(`  ${bold("Total:")} ${totalImported} imported from ${results.length} file${results.length === 1 ? "" : "s"}${totalSkipped > 0 ? ` ${dim(`(${totalSkipped} skipped as duplicates)`)}` : ""}`);
+      console.log(
+        `  ${bold("Total:")} ${totalImported} imported from ${results.length} file${results.length === 1 ? "" : "s"}${totalSkipped > 0 ? ` ${dim(`(${totalSkipped} skipped as duplicates)`)}` : ""}`,
+      );
       console.log();
       break;
     }
@@ -256,7 +247,9 @@ function handleSlashCommand(
           if (result.isErr()) {
             console.error(red(`  Error: ${result.error.message}`));
           } else {
-            console.log(`  Created database ${cyan(result.value.name)} at ${dim(result.value.path)}`);
+            console.log(
+              `  Created database ${cyan(result.value.name)} at ${dim(result.value.path)}`,
+            );
           }
         }
       } else if (action === "use") {
@@ -315,10 +308,17 @@ function formatSummary(exec: ExecutionResult): string {
   const ok = exec.exitCode === 0;
   const icon = ok ? green("✓") : red("✗");
   const s = exec.durationNs / 1_000_000_000;
-  const duration = s < 5 ? green(formatDuration(exec.durationNs)) : s < 30 ? yellow(formatDuration(exec.durationNs)) : red(formatDuration(exec.durationNs));
+  const duration =
+    s < 5
+      ? green(formatDuration(exec.durationNs))
+      : s < 30
+        ? yellow(formatDuration(exec.durationNs))
+        : red(formatDuration(exec.durationNs));
   const parts = [`  ${icon} ${bold(duration)}`];
   if (exec.cpuUserUs != null && exec.cpuSystemUs != null) {
-    parts.push(`cpu: ${formatMicroseconds(exec.cpuUserUs)} user, ${formatMicroseconds(exec.cpuSystemUs)} sys`);
+    parts.push(
+      `cpu: ${formatMicroseconds(exec.cpuUserUs)} user, ${formatMicroseconds(exec.cpuSystemUs)} sys`,
+    );
   }
   if (exec.maxRss != null) {
     parts.push(`mem: ${formatBytes(exec.maxRss)}`);
