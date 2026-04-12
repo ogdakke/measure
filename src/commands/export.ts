@@ -4,6 +4,11 @@ import { getExportData } from "../db/queries.ts";
 import { ExportError, type DatabaseError } from "../errors.ts";
 import type { Measurement } from "../types.ts";
 
+export interface ExportResult {
+  count: number;
+  path?: string;
+}
+
 export function exportCommand(
   db: Database,
   format: "csv" | "json",
@@ -11,7 +16,7 @@ export function exportCommand(
   commandFilter?: string,
   host?: string,
   output?: string,
-): Result<void, DatabaseError | ExportError> {
+): Result<ExportResult, DatabaseError | ExportError> {
   const result = getExportData(db, {
     project,
     command: commandFilter,
@@ -32,14 +37,11 @@ export function exportCommand(
         new ExportError({ message: `Failed to write to ${output}: ${e}` }),
     });
     if (writeResult.isErr()) return writeResult;
-    console.log(
-      `  Exported ${measurements.length} measurements to ${output}`,
-    );
+    return Result.ok({ count: measurements.length, path: output });
   } else {
     process.stdout.write(content);
+    return Result.ok({ count: measurements.length });
   }
-
-  return Result.ok(undefined);
 }
 
 const CSV_COLUMNS = [

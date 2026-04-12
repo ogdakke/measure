@@ -17,11 +17,12 @@ describe("benchCommand", () => {
     const result = await benchCommand(db, 3, 0, ["echo", "bench"], "tester");
 
     expect(Result.isOk(result)).toBe(true);
-    const stats = result.unwrap();
-    expect(stats.count).toBe(3);
-    expect(stats.min).toBeGreaterThan(0);
-    expect(stats.max).toBeGreaterThanOrEqual(stats.min);
-    expect(stats.mean).toBeGreaterThan(0);
+    const benchResult = result.unwrap();
+    expect(benchResult.stats.count).toBe(3);
+    expect(benchResult.stats.min).toBeGreaterThan(0);
+    expect(benchResult.stats.max).toBeGreaterThanOrEqual(benchResult.stats.min);
+    expect(benchResult.stats.mean).toBeGreaterThan(0);
+    expect(benchResult.runs.length).toBe(3);
 
     // All 3 should share the same bench_group
     const history = getHistory(db, { limit: 10 });

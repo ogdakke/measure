@@ -6,15 +6,13 @@ import {
   setActiveDbName,
   listDatabases,
   databaseExists,
-  getDatabase,
   dbNameToPath,
   pathToDbName,
   resetConnectionCache,
 } from "../../src/db/connection.ts";
 import { dbCreateCommand, dbUseCommand } from "../../src/commands/db.ts";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir, homedir } from "node:os";
 
 // These tests operate on the real ~/.measure directory
 // We save/restore state to avoid side effects

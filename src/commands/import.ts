@@ -3,10 +3,8 @@ import { Result } from "better-result";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, basename } from "node:path";
 import { DatabaseError, ExportError } from "../errors.ts";
-import { migrate } from "../db/schema.ts";
-import { bold, dim, cyan, green, yellow } from "../format/colors.ts";
 
-interface ImportResult {
+export interface ImportResult {
   file: string;
   imported: number;
   skipped: number;
@@ -15,7 +13,7 @@ interface ImportResult {
 export function importCommand(
   db: Database,
   files: string[],
-): Result<void, DatabaseError | ExportError> {
+): Result<ImportResult[], DatabaseError | ExportError> {
   const results: ImportResult[] = [];
 
   for (const file of files) {
@@ -41,30 +39,11 @@ export function importCommand(
       );
     }
 
-    if (result.isErr()) return result.map(() => undefined);
+    if (result.isErr()) return result.map(() => []);
     results.push(result.value);
   }
 
-  // Print summary
-  console.log();
-  const totalImported = results.reduce((s, r) => s + r.imported, 0);
-  const totalSkipped = results.reduce((s, r) => s + r.skipped, 0);
-
-  for (const r of results) {
-    const skipNote =
-      r.skipped > 0 ? ` ${dim(`(${r.skipped} duplicates skipped)`)}` : "";
-    console.log(
-      `  ${green("+")} ${cyan(basename(r.file))}: ${r.imported} measurements imported${skipNote}`,
-    );
-  }
-
-  console.log();
-  console.log(
-    `  ${bold("Total:")} ${totalImported} imported from ${results.length} file${results.length === 1 ? "" : "s"}${totalSkipped > 0 ? ` ${dim(`(${totalSkipped} skipped as duplicates)`)}` : ""}`,
-  );
-  console.log();
-
-  return Result.ok(undefined);
+  return Result.ok(results);
 }
 
 function importFromDb(

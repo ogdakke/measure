@@ -4,7 +4,6 @@ import { executeCommand } from "../runner/execute.ts";
 import { insertMeasurement } from "../db/queries.ts";
 import { getSystemInfo } from "../system/metadata.ts";
 import { detectProject } from "../system/project.ts";
-import { formatSummary } from "./shared.ts";
 import type { CommandError, DatabaseError } from "../errors.ts";
 import type { Measurement } from "../types.ts";
 
@@ -29,11 +28,6 @@ export async function runCommand(
     cwd: process.cwd(),
     benchGroup: null,
   });
-
-  if (saved.isErr()) return saved;
-
-  console.log();
-  console.log(formatSummary(execution));
 
   return saved;
 }

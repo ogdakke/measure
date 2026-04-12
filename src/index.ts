@@ -6,12 +6,13 @@ import { dbListCommand, dbCreateCommand, dbUseCommand } from "./commands/db.ts";
 import { exportCommand } from "./commands/export.ts";
 import { historyCommand } from "./commands/history.ts";
 import { importCommand } from "./commands/import.ts";
-import { startRepl } from "./commands/repl.ts";
 import { runCommand } from "./commands/run.ts";
 import { statsCommand } from "./commands/stats.ts";
 import { systemCommand } from "./commands/system.ts";
 import { getDatabase } from "./db/connection.ts";
-import { bold, dim, red } from "./format/colors.ts";
+import { bold, dim, red, green, yellow, cyan } from "./format/colors.ts";
+import { formatDuration, formatBytes, formatMicroseconds } from "./format/units.ts";
+import { renderTable, type Column } from "./format/table.ts";
 import { ensureUsername } from "./system/username.ts";
 
 // Extract --db flag before parsing commands
@@ -40,21 +41,33 @@ if (cmd.command === "version") {
 
 // db list doesn't need a database connection
 if (cmd.command === "db" && cmd.action === "list") {
-  dbListCommand();
+  const dbs = dbListCommand();
+  console.log();
+  console.log(`  ${bold("Databases:")}`);
+  for (const db of dbs) {
+    const marker = db.active ? green(" (active)") : "";
+    console.log(`    ${cyan(db.name)}${marker}  ${dim(db.path)}`);
+  }
+  console.log();
   process.exit(0);
 }
 
 // db create/use don't need the full DB open flow
 if (cmd.command === "db") {
-  let result;
   if (cmd.action === "create") {
-    result = dbCreateCommand(cmd.name);
+    const result = dbCreateCommand(cmd.name);
+    if (result.isErr()) {
+      console.error(red(`  Error: ${result.error.message}`));
+      process.exit(1);
+    }
+    console.log(`  Created database ${cyan(result.value.name)} at ${dim(result.value.path)}`);
   } else {
-    result = dbUseCommand(cmd.name);
-  }
-  if (result.isErr()) {
-    console.error(red(`  Error: ${result.error.message}`));
-    process.exit(1);
+    const result = dbUseCommand(cmd.name);
+    if (result.isErr()) {
+      console.error(red(`  Error: ${result.error.message}`));
+      process.exit(1);
+    }
+    console.log(`  Switched to database ${cyan(result.value)}`);
   }
   process.exit(0);
 }
@@ -74,6 +87,17 @@ if (cmd.command === "import") {
     console.error(red(`  Error: ${result.error.message}`));
     process.exit(1);
   }
+  const results = result.value;
+  const totalImported = results.reduce((s, r) => s + r.imported, 0);
+  const totalSkipped = results.reduce((s, r) => s + r.skipped, 0);
+  console.log();
+  for (const r of results) {
+    const skipNote = r.skipped > 0 ? ` ${dim(`(${r.skipped} duplicates skipped)`)}` : "";
+    console.log(`  ${green("+")} ${cyan(require("node:path").basename(r.file))}: ${r.imported} measurements imported${skipNote}`);
+  }
+  console.log();
+  console.log(`  ${bold("Total:")} ${totalImported} imported from ${results.length} file${results.length === 1 ? "" : "s"}${totalSkipped > 0 ? ` ${dim(`(${totalSkipped} skipped as duplicates)`)}` : ""}`);
+  console.log();
   process.exit(0);
 }
 
@@ -82,9 +106,22 @@ const needsUsername = cmd.command === "repl" || cmd.command === "run" || cmd.com
 const username = needsUsername ? await ensureUsername(db) : "";
 
 switch (cmd.command) {
-  case "repl":
-    await startRepl(db, username);
+  case "repl": {
+    if (!process.stdin.isTTY) {
+      console.error(red("  Error: REPL requires an interactive terminal (TTY)."));
+      process.exit(1);
+    }
+    // Dynamic import to keep one-shot commands fast (React/Ink only loaded for REPL)
+    const { render } = await import("ink");
+    const { Repl } = await import("./ui/Repl.tsx");
+    const { createElement } = await import("react");
+    const instance = render(createElement(Repl, { db, username }), {
+      exitOnCtrlC: true,
+      patchConsole: true,
+    });
+    await instance.waitUntilExit();
     break;
+  }
 
   case "run": {
     const result = await runCommand(db, cmd.args, username);
@@ -92,6 +129,8 @@ switch (cmd.command) {
       console.error(red(`  Error: ${result.error.message}`));
       process.exit(1);
     }
+    console.log();
+    console.log(formatSummary(result.value));
     process.exit(result.value.exitCode);
     break;
   }
@@ -103,25 +142,72 @@ switch (cmd.command) {
       cmd.warmup,
       cmd.args,
       username,
+      (event) => {
+        if (event.type === "warmup") {
+          console.log(dim(`  Warmup ${event.index + 1}/${event.total}...`));
+        } else {
+          const ok = event.exitCode === 0;
+          console.log(
+            dim(`  Run ${event.index + 1}/${event.total}: `) +
+              `${formatDuration(event.durationNs)} ${ok ? green("✓") : yellow(`exit: ${event.exitCode}`)}`,
+          );
+        }
+      },
     );
     if (result.isErr()) {
       console.error(red(`  Error: ${result.error.message}`));
       process.exit(1);
     }
+    const { stats, command, iterations, warmup } = result.value;
+    console.log();
+    console.log(`  ${bold("Benchmark:")} ${cyan(command)} ${dim(`(${iterations} runs${warmup > 0 ? `, ${warmup} warmup` : ""})`)}`);
+    console.log();
+    console.log(`  ${bold("Results:")}`);
+    console.log(`  ${dim("Mean:  ")} ${formatDuration(stats.mean)}`);
+    console.log(`  ${dim("Median:")} ${formatDuration(stats.median)}`);
+    console.log(`  ${dim("Min:   ")} ${formatDuration(stats.min)}`);
+    console.log(`  ${dim("Max:   ")} ${formatDuration(stats.max)}`);
+    console.log(`  ${dim("StdDev:")} ${formatDuration(stats.stddev)}`);
+    if (iterations >= 10) {
+      console.log(`  ${dim("P5:    ")} ${formatDuration(stats.p5)}`);
+      console.log(`  ${dim("P95:   ")} ${formatDuration(stats.p95)}`);
+    }
+    console.log();
     break;
   }
 
   case "history": {
-    const result = historyCommand(
-      db,
-      cmd.limit,
-      cmd.project,
-      cmd.commandFilter,
-    );
+    const result = historyCommand(db, cmd.limit, cmd.project, cmd.commandFilter);
     if (result.isErr()) {
       console.error(red(`  Error: ${result.error.message}`));
       process.exit(1);
     }
+    const rows = result.value;
+    if (rows.length === 0) {
+      console.log(dim("\n  No measurements found.\n"));
+      break;
+    }
+    const columns: Column[] = [
+      { key: "id", label: "#", align: "right" },
+      { key: "command", label: "Command", maxWidth: 40 },
+      { key: "duration", label: "Duration", align: "right" },
+      { key: "exit", label: "Exit", align: "right" },
+      { key: "project", label: "Project", maxWidth: 20 },
+      { key: "host", label: "Host", maxWidth: 16 },
+      { key: "date", label: "Date" },
+    ];
+    const tableRows = rows.map((m) => ({
+      id: String(m.id),
+      command: m.command,
+      duration: formatDuration(m.durationNs),
+      exit: m.exitCode === 0 ? green(String(m.exitCode)) : red(String(m.exitCode)),
+      project: m.project ?? dim("—"),
+      host: m.hostname,
+      date: formatDate(m.createdAt),
+    }));
+    console.log();
+    console.log(renderTable(columns, tableRows));
+    console.log();
     break;
   }
 
@@ -131,28 +217,95 @@ switch (cmd.command) {
       console.error(red(`  Error: ${result.error.message}`));
       process.exit(1);
     }
+    const stats = result.value;
+    if (stats.length === 0) {
+      console.log(dim("\n  No measurements found.\n"));
+      break;
+    }
+    const columns: Column[] = [
+      { key: "command", label: "Command", maxWidth: 30 },
+      { key: "host", label: "Host", maxWidth: 16 },
+      { key: "os", label: "OS" },
+      { key: "cpu", label: "CPU", maxWidth: 24 },
+      { key: "count", label: "Runs", align: "right" },
+      { key: "mean", label: "Mean", align: "right" },
+      { key: "median", label: "Median", align: "right" },
+      { key: "min", label: "Min", align: "right" },
+      { key: "max", label: "Max", align: "right" },
+      { key: "rate", label: "Pass %", align: "right" },
+    ];
+    const tableRows = stats.map((s) => ({
+      command: s.command,
+      host: s.hostname,
+      os: s.os,
+      cpu: s.cpuModel,
+      count: String(s.count),
+      mean: formatDuration(s.meanNs),
+      median: formatDuration(s.medianNs),
+      min: formatDuration(s.minNs),
+      max: formatDuration(s.maxNs),
+      rate: `${(s.successRate * 100).toFixed(0)}%`,
+    }));
+    console.log();
+    console.log(`  ${bold("Aggregated Stats")}${cmd.project ? ` — project: ${cmd.project}` : ""}`);
+    console.log();
+    console.log(renderTable(columns, tableRows));
+    console.log();
     break;
   }
 
   case "export": {
-    const result = exportCommand(
-      db,
-      cmd.format,
-      cmd.project,
-      cmd.commandFilter,
-      cmd.host,
-      cmd.output,
-    );
+    const result = exportCommand(db, cmd.format, cmd.project, cmd.commandFilter, cmd.host, cmd.output);
     if (result.isErr()) {
       console.error(red(`  Error: ${result.error.message}`));
       process.exit(1);
     }
+    if (result.value.path) {
+      console.log(`  Exported ${result.value.count} measurements to ${result.value.path}`);
+    }
     break;
   }
 
-  case "system":
-    systemCommand(username);
+  case "system": {
+    const sys = systemCommand(username);
+    console.log();
+    console.log(`  ${bold("System Info")}`);
+    console.log(`  ${dim("OS:      ")} ${sys.os}`);
+    console.log(`  ${dim("CPU:     ")} ${sys.cpuModel}`);
+    console.log(`  ${dim("Cores:   ")} ${sys.cpuCores}`);
+    console.log(`  ${dim("RAM:     ")} ${formatBytes(sys.ramBytes)}`);
+    console.log(`  ${dim("Host:    ")} ${sys.hostname}`);
+    console.log(`  ${dim("User:    ")} ${sys.username}`);
+    console.log(`  ${dim("Shell:   ")} ${sys.shell ?? "unknown"}`);
+    console.log(`  ${dim("Bun:     ")} ${sys.bunVersion}`);
+    console.log();
     break;
+  }
+}
+
+function formatSummary(m: { exitCode: number; durationNs: number; cpuUserUs: number | null; cpuSystemUs: number | null; maxRss: number | null }): string {
+  const ok = m.exitCode === 0;
+  const icon = ok ? green("✓") : red("✗");
+  const s = m.durationNs / 1_000_000_000;
+  const duration = s < 5 ? green(formatDuration(m.durationNs)) : s < 30 ? yellow(formatDuration(m.durationNs)) : red(formatDuration(m.durationNs));
+  const parts = [`  ${icon} ${bold(duration)}`];
+  if (m.cpuUserUs != null && m.cpuSystemUs != null) {
+    parts.push(`cpu: ${formatMicroseconds(m.cpuUserUs)} user, ${formatMicroseconds(m.cpuSystemUs)} sys`);
+  }
+  if (m.maxRss != null) {
+    parts.push(`mem: ${formatBytes(m.maxRss)}`);
+  }
+  parts.push(`exit: ${ok ? dim(String(m.exitCode)) : red(String(m.exitCode))}`);
+  return parts.join(dim(" | "));
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso + "Z");
+  const month = d.toLocaleString("en", { month: "short" });
+  const day = d.getDate();
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${month} ${day} ${h}:${m}`;
 }
 
 function printHelp(): void {

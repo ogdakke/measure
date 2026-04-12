@@ -16,7 +16,6 @@ function findPackageName(dir: string): string | null {
   for (let i = 0; i < 20; i++) {
     const pkgPath = join(current, "package.json");
     const result = Result.try(() => {
-      const file = Bun.file(pkgPath);
       // Bun.file doesn't throw for missing files, but .json() will
       // Use a sync approach: check size first
       return JSON.parse(

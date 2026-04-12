@@ -4,11 +4,21 @@ import { executeCommand } from "../runner/execute.ts";
 import { insertMeasurement } from "../db/queries.ts";
 import { getSystemInfo } from "../system/metadata.ts";
 import { detectProject } from "../system/project.ts";
-import { formatSummary } from "./shared.ts";
-import { bold, dim, cyan, green, yellow } from "../format/colors.ts";
-import { formatDuration } from "../format/units.ts";
 import type { CommandError, DatabaseError } from "../errors.ts";
 import type { BenchStats } from "../types.ts";
+
+export interface BenchRun {
+  durationNs: number;
+  exitCode: number;
+}
+
+export interface BenchResult {
+  command: string;
+  iterations: number;
+  warmup: number;
+  stats: BenchStats;
+  runs: BenchRun[];
+}
 
 export async function benchCommand(
   db: Database,
@@ -16,34 +26,29 @@ export async function benchCommand(
   warmup: number,
   args: string[],
   username: string,
-): Promise<Result<BenchStats, CommandError | DatabaseError>> {
+  onProgress?: (event: BenchProgressEvent) => void,
+): Promise<Result<BenchResult, CommandError | DatabaseError>> {
   const command = args.join(" ");
   const system = getSystemInfo(username);
   const project = detectProject(process.cwd());
   const benchGroup = crypto.randomUUID();
 
-  console.log();
-  console.log(
-    `  ${bold("Benchmark:")} ${cyan(command)} ${dim(`(${iterations} runs${warmup > 0 ? `, ${warmup} warmup` : ""})`)}`,
-  );
-  console.log();
-
   // Warmup runs
   for (let i = 0; i < warmup; i++) {
-    console.log(dim(`  Warmup ${i + 1}/${warmup}...`));
+    onProgress?.({ type: "warmup", index: i, total: warmup });
     const result = await executeCommand(command);
     if (result.isErr()) return result;
   }
 
   // Measured runs
-  const durations: number[] = [];
+  const runs: BenchRun[] = [];
 
   for (let i = 0; i < iterations; i++) {
     const result = await executeCommand(command);
     if (result.isErr()) return result;
 
     const execution = result.value;
-    durations.push(execution.durationNs);
+    runs.push({ durationNs: execution.durationNs, exitCode: execution.exitCode });
 
     const saved = insertMeasurement(db, {
       command,
@@ -55,32 +60,19 @@ export async function benchCommand(
     });
     if (saved.isErr()) return saved;
 
-    const ok = execution.exitCode === 0;
-    console.log(
-      dim(`  Run ${i + 1}/${iterations}: `) +
-        `${formatDuration(execution.durationNs)} ${ok ? green("✓") : yellow(`exit: ${execution.exitCode}`)}`,
-    );
+    onProgress?.({ type: "run", index: i, total: iterations, durationNs: execution.durationNs, exitCode: execution.exitCode });
   }
 
-  const stats = computeStats(durations);
+  const stats = computeStats(runs.map((r) => r.durationNs));
 
-  console.log();
-  console.log(`  ${bold("Results:")}`);
-  console.log(`  ${dim("Mean:  ")} ${formatDuration(stats.mean)}`);
-  console.log(`  ${dim("Median:")} ${formatDuration(stats.median)}`);
-  console.log(`  ${dim("Min:   ")} ${formatDuration(stats.min)}`);
-  console.log(`  ${dim("Max:   ")} ${formatDuration(stats.max)}`);
-  console.log(`  ${dim("StdDev:")} ${formatDuration(stats.stddev)}`);
-  if (iterations >= 10) {
-    console.log(`  ${dim("P5:    ")} ${formatDuration(stats.p5)}`);
-    console.log(`  ${dim("P95:   ")} ${formatDuration(stats.p95)}`);
-  }
-  console.log();
-
-  return Result.ok(stats);
+  return Result.ok({ command, iterations, warmup, stats, runs });
 }
 
-function computeStats(values: number[]): BenchStats {
+export type BenchProgressEvent =
+  | { type: "warmup"; index: number; total: number }
+  | { type: "run"; index: number; total: number; durationNs: number; exitCode: number };
+
+export function computeStats(values: number[]): BenchStats {
   const sorted = [...values].sort((a, b) => a - b);
   const count = sorted.length;
   const sum = sorted.reduce((a, b) => a + b, 0);

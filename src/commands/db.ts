@@ -8,25 +8,26 @@ import {
   databaseExists,
   dbNameToPath,
 } from "../db/connection.ts";
-import { bold, dim, cyan, green } from "../format/colors.ts";
 
-export function dbListCommand(): void {
+export interface DbInfo {
+  name: string;
+  path: string;
+  active: boolean;
+}
+
+export function dbListCommand(): DbInfo[] {
   const active = getActiveDbName();
   const databases = listDatabases();
-
-  console.log();
-  console.log(`  ${bold("Databases:")}`);
-  for (const name of databases) {
-    const marker = name === active ? green(" (active)") : "";
-    const path = dim(dbNameToPath(name));
-    console.log(`    ${cyan(name)}${marker}  ${path}`);
-  }
-  console.log();
+  return databases.map((name) => ({
+    name,
+    path: dbNameToPath(name),
+    active: name === active,
+  }));
 }
 
 export function dbCreateCommand(
   name: string,
-): Result<void, DatabaseError> {
+): Result<{ name: string; path: string }, DatabaseError> {
   if (databaseExists(name)) {
     return Result.err(
       new DatabaseError({ message: `Database '${name}' already exists.` }),
@@ -34,13 +35,12 @@ export function dbCreateCommand(
   }
 
   const dbResult = getDatabase(name);
-  if (dbResult.isErr()) return dbResult.map(() => undefined);
+  if (dbResult.isErr()) return dbResult.map(() => ({ name, path: dbNameToPath(name) }));
 
-  console.log(`  Created database ${cyan(name)} at ${dim(dbNameToPath(name))}`);
-  return Result.ok(undefined);
+  return Result.ok({ name, path: dbNameToPath(name) });
 }
 
-export function dbUseCommand(name: string): Result<void, DatabaseError> {
+export function dbUseCommand(name: string): Result<string, DatabaseError> {
   if (name !== "default" && !databaseExists(name)) {
     return Result.err(
       new DatabaseError({
@@ -50,6 +50,5 @@ export function dbUseCommand(name: string): Result<void, DatabaseError> {
   }
 
   setActiveDbName(name);
-  console.log(`  Switched to database ${cyan(name)}`);
-  return Result.ok(undefined);
+  return Result.ok(name);
 }

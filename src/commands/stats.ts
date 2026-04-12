@@ -1,9 +1,6 @@
 import { Result } from "better-result";
 import type { Database } from "bun:sqlite";
 import { getStatsData } from "../db/queries.ts";
-import { renderTable, type Column } from "../format/table.ts";
-import { formatDuration } from "../format/units.ts";
-import { bold, dim } from "../format/colors.ts";
 import type { DatabaseError } from "../errors.ts";
 import type { AggregateStats, Measurement } from "../types.ts";
 
@@ -12,7 +9,7 @@ export function statsCommand(
   project?: string,
   commandFilter?: string,
   host?: string,
-): Result<void, DatabaseError> {
+): Result<AggregateStats[], DatabaseError> {
   const result = getStatsData(db, {
     project,
     command: commandFilter,
@@ -20,50 +17,10 @@ export function statsCommand(
   });
   if (result.isErr()) return result;
 
-  const measurements = result.value;
-  if (measurements.length === 0) {
-    console.log(dim("\n  No measurements found.\n"));
-    return Result.ok(undefined);
-  }
-
-  const stats = aggregate(measurements);
-
-  const columns: Column[] = [
-    { key: "command", label: "Command", maxWidth: 30 },
-    { key: "host", label: "Host", maxWidth: 16 },
-    { key: "os", label: "OS" },
-    { key: "cpu", label: "CPU", maxWidth: 24 },
-    { key: "count", label: "Runs", align: "right" },
-    { key: "mean", label: "Mean", align: "right" },
-    { key: "median", label: "Median", align: "right" },
-    { key: "min", label: "Min", align: "right" },
-    { key: "max", label: "Max", align: "right" },
-    { key: "rate", label: "Pass %", align: "right" },
-  ];
-
-  const tableRows = stats.map((s) => ({
-    command: s.command,
-    host: s.hostname,
-    os: s.os,
-    cpu: s.cpuModel,
-    count: String(s.count),
-    mean: formatDuration(s.meanNs),
-    median: formatDuration(s.medianNs),
-    min: formatDuration(s.minNs),
-    max: formatDuration(s.maxNs),
-    rate: `${(s.successRate * 100).toFixed(0)}%`,
-  }));
-
-  console.log();
-  console.log(`  ${bold("Aggregated Stats")}${project ? ` — project: ${project}` : ""}`);
-  console.log();
-  console.log(renderTable(columns, tableRows));
-  console.log();
-
-  return Result.ok(undefined);
+  return Result.ok(aggregate(result.value));
 }
 
-function aggregate(measurements: Measurement[]): AggregateStats[] {
+export function aggregate(measurements: Measurement[]): AggregateStats[] {
   const groups = new Map<string, Measurement[]>();
 
   for (const m of measurements) {

@@ -48,6 +48,7 @@ export function renderTable(
 
 function pad(str: string, width: number, align: "left" | "right"): string {
   // Account for ANSI escape codes in length calculation
+  // eslint-disable-next-line no-control-regex
   const visible = str.replace(/\x1b\[[0-9;]*m/g, "");
   const diff = width - visible.length;
   if (diff <= 0) return str;

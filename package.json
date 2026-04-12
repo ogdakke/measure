@@ -24,10 +24,13 @@
     "win32"
   ],
   "dependencies": {
-    "better-result": "^2.8.2"
+    "better-result": "^2.8.2",
+    "ink": "7",
+    "react": "^19.2.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/react": "^19.2.14",
     "@typescript/native-preview": "^7.0.0-dev.20260412.1",
     "oxfmt": "^0.44.0",
     "oxlint": "^1.59.0",
