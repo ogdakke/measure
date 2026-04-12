@@ -18,6 +18,7 @@ import type { ExecutionResult } from "../types.ts";
 import { formatReplSlashCommandHelpLines, parseReplSlashCommand } from "../repl/slash-commands.ts";
 
 export async function startRepl(db: Database, username: string): Promise<void> {
+  let currentDb = db;
   const system = getSystemInfo(username);
   const project = detectProject(process.cwd());
 
@@ -48,7 +49,8 @@ export async function startRepl(db: Database, username: string): Promise<void> {
     }
 
     if (input.startsWith("/")) {
-      handleSlashCommand(db, username, input);
+      const nextDb = handleSlashCommand(currentDb, username, input);
+      if (nextDb) currentDb = nextDb;
       rl.prompt();
       return;
     }
@@ -62,7 +64,7 @@ export async function startRepl(db: Database, username: string): Promise<void> {
     }
 
     const execution = result.value;
-    const saved = insertMeasurement(db, {
+    const saved = insertMeasurement(currentDb, {
       command: input,
       project,
       execution,
@@ -90,7 +92,7 @@ export async function startRepl(db: Database, username: string): Promise<void> {
   });
 }
 
-function handleSlashCommand(db: Database, username: string, input: string): void {
+function handleSlashCommand(db: Database, username: string, input: string): Database | undefined {
   const { command, args } = parseReplSlashCommand(input);
 
   switch (command?.key) {
@@ -260,7 +262,8 @@ function handleSlashCommand(db: Database, username: string, input: string): void
           if (result.isErr()) {
             console.error(red(`  Error: ${result.error.message}`));
           } else {
-            console.log(`  Switched to database ${cyan(result.value)}`);
+            console.log(`  Switched to database ${cyan(result.value.name)}`);
+            return result.value.db;
           }
         }
       } else {

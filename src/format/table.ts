@@ -18,7 +18,7 @@ export function renderTable(columns: Column[], rows: Record<string, string>[]): 
   // Compute natural width each column needs (min of content vs maxWidth)
   const naturalWidths = columns.map((col) => {
     const dataMax = rows.reduce(
-      (max, row) => Math.max(max, stripAnsi(row[col.key] ?? "").length),
+      (max, row) => Math.max(max, stripAnsi(normalizeCell(row[col.key] ?? "")).length),
       0,
     );
     const headerWidth = col.label.length;
@@ -56,7 +56,7 @@ export function renderTable(columns: Column[], rows: Record<string, string>[]): 
   const body = rows.map((row) =>
     columns
       .map((col, i) => {
-        let val = row[col.key] ?? "";
+        let val = normalizeCell(row[col.key] ?? "");
         const visLen = stripAnsi(val).length;
         if (col.maxWidth && visLen > widths[i]!) {
           val = val.slice(0, widths[i]! - 1) + "…";
@@ -71,6 +71,10 @@ export function renderTable(columns: Column[], rows: Record<string, string>[]): 
     " ".repeat(indent) + separator,
     ...body.map((r) => " ".repeat(indent) + r),
   ].join("\n");
+}
+
+function normalizeCell(str: string): string {
+  return str.replace(/[\r\n\t\v\f]+/g, " ").trim();
 }
 
 function stripAnsi(str: string): string {

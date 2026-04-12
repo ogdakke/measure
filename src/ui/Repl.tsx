@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { Box, Text, Static, useApp, renderToString } from "ink";
 import type { Database } from "bun:sqlite";
 import { spawnPiped, collectResult } from "../runner/execute-piped.ts";
@@ -41,8 +41,13 @@ interface HistoryItem {
 
 let nextId = 0;
 
+function renderForTerminal(node: ReactNode): string {
+  return renderToString(node, { columns: process.stdout.columns ?? 80 });
+}
+
 export function Repl({ db, username }: ReplProps) {
   const { exit } = useApp();
+  const [currentDb, setCurrentDb] = useState(db);
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [runningCommand, setRunningCommand] = useState("");
@@ -86,22 +91,22 @@ export function Repl({ db, username }: ReplProps) {
 
         case "history": {
           const limit = parseInt(args[0] ?? "10", 10) || 10;
-          const result = historyCommand(db, limit);
+          const result = historyCommand(currentDb, limit);
           if (result.isErr()) {
             addInfoItem(`  Error: ${result.error.message}`);
           } else {
-            const output = renderToString(<HistoryView rows={result.value} />);
+            const output = renderForTerminal(<HistoryView rows={result.value} />);
             addInfoItem(output);
           }
           break;
         }
 
         case "stats": {
-          const result = statsCommand(db);
+          const result = statsCommand(currentDb);
           if (result.isErr()) {
             addInfoItem(`  Error: ${result.error.message}`);
           } else {
-            const output = renderToString(<StatsView stats={result.value} />);
+            const output = renderForTerminal(<StatsView stats={result.value} />);
             addInfoItem(output);
           }
           break;
@@ -111,7 +116,7 @@ export function Repl({ db, username }: ReplProps) {
           const format = (args[0] === "json" ? "json" : "csv") as "csv" | "json";
           const date = new Date().toISOString().slice(0, 10);
           const filename = args[1] ?? join(process.cwd(), `measure-export-${date}.${format}`);
-          const result = exportCommand(db, format, undefined, undefined, undefined, filename);
+          const result = exportCommand(currentDb, format, undefined, undefined, undefined, filename);
           if (result.isErr()) {
             addInfoItem(`  Error: ${result.error.message}`);
           } else if (result.value.path) {
@@ -125,11 +130,11 @@ export function Repl({ db, username }: ReplProps) {
             addInfoItem("  Usage: /import <file1.db|.csv|.json> [file2...]");
             break;
           }
-          const result = importCommand(db, args);
+          const result = importCommand(currentDb, args);
           if (result.isErr()) {
             addInfoItem(`  Error: ${result.error.message}`);
           } else {
-            const output = renderToString(<ImportView results={result.value} />);
+            const output = renderForTerminal(<ImportView results={result.value} />);
             addInfoItem(output);
           }
           break;
@@ -138,7 +143,7 @@ export function Repl({ db, username }: ReplProps) {
         case "db": {
           const action = args[0] ?? "list";
           if (action === "list") {
-            const output = renderToString(<DbListView databases={dbListCommand()} />);
+            const output = renderForTerminal(<DbListView databases={dbListCommand()} />);
             addInfoItem(output);
           } else if (action === "create") {
             if (!args[1]) {
@@ -159,7 +164,8 @@ export function Repl({ db, username }: ReplProps) {
               if (result.isErr()) {
                 addInfoItem(`  Error: ${result.error.message}`);
               } else {
-                addInfoItem(`  Switched to database ${result.value}`);
+                setCurrentDb(result.value.db);
+                addInfoItem(`  Switched to database ${result.value.name}`);
               }
             }
           } else {
@@ -170,7 +176,7 @@ export function Repl({ db, username }: ReplProps) {
 
         case "system": {
           const info = systemCommand(username);
-          const output = renderToString(<SystemView info={info} />);
+          const output = renderForTerminal(<SystemView info={info} />);
           addInfoItem(output);
           break;
         }
@@ -189,7 +195,7 @@ export function Repl({ db, username }: ReplProps) {
           break;
       }
     },
-    [db, username, addInfoItem, exit],
+    [currentDb, username, addInfoItem, exit],
   );
 
   const handleSubmit = useCallback(
@@ -251,7 +257,7 @@ export function Repl({ db, username }: ReplProps) {
         const exec = collectResult(execution, exitCode);
 
         // Save to DB
-        insertMeasurement(db, {
+        insertMeasurement(currentDb, {
           command: input,
           project,
           execution: exec,
@@ -261,7 +267,7 @@ export function Repl({ db, username }: ReplProps) {
         });
 
         // Add to history
-        const summaryStr = renderToString(<Summary exec={exec} />);
+        const summaryStr = renderForTerminal(<Summary exec={exec} />);
         setItems((prev) => [
           ...prev,
           ...(capturedOutput
@@ -283,7 +289,7 @@ export function Repl({ db, username }: ReplProps) {
         setRunningOutput("");
       }
     },
-    [db, system, project, handleSlashCommand, addInfoItem],
+    [currentDb, system, project, handleSlashCommand, addInfoItem],
   );
 
   return (

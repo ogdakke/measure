@@ -66,7 +66,7 @@ if (cmd.command === "db") {
       console.error(red(`  Error: ${result.error.message}`));
       process.exit(1);
     }
-    console.log(`  Switched to database ${cyan(result.value)}`);
+    console.log(`  Switched to database ${cyan(result.value.name)}`);
   }
   process.exit(0);
 }

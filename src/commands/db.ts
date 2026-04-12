@@ -1,3 +1,4 @@
+import type { Database } from "bun:sqlite";
 import { Result } from "better-result";
 import { DatabaseError } from "../errors.ts";
 import {
@@ -38,7 +39,7 @@ export function dbCreateCommand(
   return Result.ok({ name, path: dbNameToPath(name) });
 }
 
-export function dbUseCommand(name: string): Result<string, DatabaseError> {
+export function dbUseCommand(name: string): Result<{ name: string; db: Database }, DatabaseError> {
   if (name !== "default" && !databaseExists(name)) {
     return Result.err(
       new DatabaseError({
@@ -47,6 +48,11 @@ export function dbUseCommand(name: string): Result<string, DatabaseError> {
     );
   }
 
+  const dbResult = getDatabase(name);
+  if (dbResult.isErr()) {
+    return Result.err(dbResult.error);
+  }
+
   setActiveDbName(name);
-  return Result.ok(name);
+  return Result.ok({ name, db: dbResult.value });
 }

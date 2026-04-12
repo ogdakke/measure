@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import { Table, type TableColumn } from "./Table.tsx";
+import { renderTable, type Column } from "../format/table.ts";
 import { formatDuration } from "../format/units.ts";
 import type { AggregateStats } from "../types.ts";
 
@@ -8,16 +8,16 @@ interface StatsViewProps {
   project?: string;
 }
 
-const columns: TableColumn[] = [
-  { key: "command", label: "Command", width: "18%" },
-  { key: "host", label: "Host", width: "12%" },
-  { key: "os", label: "OS", width: "8%" },
-  { key: "cpu", label: "CPU", width: "16%" },
-  { key: "count", label: "Runs", width: "6%", align: "right" },
-  { key: "mean", label: "Mean", width: "10%", align: "right" },
-  { key: "median", label: "Median", width: "10%", align: "right" },
-  { key: "min", label: "Min", width: "10%", align: "right" },
-  { key: "max", label: "Max", width: "10%", align: "right" },
+const columns: Column[] = [
+  { key: "command", label: "Command", maxWidth: 30 },
+  { key: "host", label: "Host", maxWidth: 16 },
+  { key: "os", label: "OS" },
+  { key: "cpu", label: "CPU", maxWidth: 24 },
+  { key: "count", label: "Runs", align: "right" },
+  { key: "mean", label: "Mean", align: "right" },
+  { key: "median", label: "Median", align: "right" },
+  { key: "min", label: "Min", align: "right" },
+  { key: "max", label: "Max", align: "right" },
 ];
 
 export function StatsView({ stats, project }: StatsViewProps) {
@@ -47,7 +47,7 @@ export function StatsView({ stats, project }: StatsViewProps) {
         <Text bold>Aggregated Stats</Text>
         {project && <Text dimColor> — project: {project}</Text>}
       </Box>
-      <Table columns={columns} rows={tableRows} />
+      <Text>{renderTable(columns, tableRows)}</Text>
     </Box>
   );
 }
