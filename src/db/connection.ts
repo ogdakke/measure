@@ -3,7 +3,7 @@ import { Result } from "better-result";
 import { homedir } from "node:os";
 import { join, basename } from "node:path";
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
-import { DatabaseError } from "../errors.ts";
+import { DatabaseError, describeUnknownError } from "../errors.ts";
 import { migrate } from "./schema.ts";
 
 const instances = new Map<string, Database>();
@@ -89,7 +89,8 @@ export function getDatabase(name?: string): Result<Database, DatabaseError> {
       instances.set(dbName, db);
       return db;
     },
-    catch: (e) => new DatabaseError({ message: `Failed to open database: ${e}` }),
+    catch: (e) =>
+      new DatabaseError({ message: `Failed to open database: ${describeUnknownError(e)}` }),
   });
 }
 
@@ -100,7 +101,10 @@ export function openDatabaseAt(path: string): Result<Database, DatabaseError> {
       const db = new Database(path, { readonly: true, strict: true });
       return db;
     },
-    catch: (e) => new DatabaseError({ message: `Failed to open database at ${path}: ${e}` }),
+    catch: (e) =>
+      new DatabaseError({
+        message: `Failed to open database at ${path}: ${describeUnknownError(e)}`,
+      }),
   });
 }
 

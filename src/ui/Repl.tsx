@@ -9,6 +9,7 @@ import { importCommand } from "../commands/import.ts";
 import { statsCommand } from "../commands/stats.ts";
 import { systemCommand } from "../commands/system.ts";
 import { insertMeasurement } from "../db/queries.ts";
+import { describeUnknownError } from "../errors.ts";
 import { formatDuration } from "../format/units.ts";
 import {
   formatReplSlashCommandHelpLines,
@@ -333,8 +334,8 @@ function ShellsBox({
 }
 
 export function Repl({ db, username }: ReplProps) {
-  const { exit, waitUntilRenderFlush } = useApp();
-  const { write } = useStdout();
+  const app = useApp();
+  const stdout = useStdout();
   const [currentDb, setCurrentDb] = useState(db);
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [shells, setShells] = useState<ShellSession[]>([]);
@@ -371,7 +372,7 @@ export function Repl({ db, username }: ReplProps) {
   }, [shells]);
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       const pkg = await Bun.file(new URL("../../package.json", import.meta.url).pathname).json();
       setVersion(pkg.version ?? "0.1.0");
     })();
@@ -404,10 +405,10 @@ export function Repl({ db, username }: ReplProps) {
   const clearScreen = useCallback(() => {
     setItems([]);
     void (async () => {
-      await waitUntilRenderFlush();
-      write("\x1B[2J\x1B[3J\x1B[H");
+      await app.waitUntilRenderFlush();
+      stdout.write("\x1B[2J\x1B[3J\x1B[H");
     })();
-  }, [waitUntilRenderFlush, write]);
+  }, [app, stdout]);
 
   const updateShell = useCallback(
     (shellId: number, update: (shell: ShellSession) => ShellSession) => {
@@ -736,7 +737,7 @@ export function Repl({ db, username }: ReplProps) {
           break;
 
         case "exit":
-          exit();
+          app.exit();
           break;
 
         default:
@@ -744,7 +745,7 @@ export function Repl({ db, username }: ReplProps) {
           break;
       }
     },
-    [currentDb, username, addInfoItem, clearScreen, exit],
+    [app, currentDb, username, addInfoItem, clearScreen],
   );
 
   const handleSubmit = useCallback(
@@ -884,7 +885,7 @@ export function Repl({ db, username }: ReplProps) {
         ]);
       } catch (error) {
         removeShell(shellId);
-        addInfoItem(`  Error: ${String(error)}`);
+        addInfoItem(`  Error: ${describeUnknownError(error)}`);
       }
     },
     [addInfoItem, currentDb, handleSlashCommand, project, removeShell, system, updateShell],

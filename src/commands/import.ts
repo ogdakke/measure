@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { Result } from "better-result";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, basename } from "node:path";
-import { DatabaseError, ExportError } from "../errors.ts";
+import { DatabaseError, ExportError, describeUnknownError } from "../errors.ts";
 
 export interface ImportResult {
   file: string;
@@ -117,7 +117,10 @@ function importFromDb(targetDb: Database, sourcePath: string): Result<ImportResu
         targetDb.run("DETACH DATABASE source");
       }
     },
-    catch: (e) => new DatabaseError({ message: `Failed to import from ${sourcePath}: ${e}` }),
+    catch: (e) =>
+      new DatabaseError({
+        message: `Failed to import from ${sourcePath}: ${describeUnknownError(e)}`,
+      }),
   });
 }
 
@@ -136,7 +139,10 @@ function importFromJson(
 
       return importRows(db, filePath, data, "json");
     },
-    catch: (e) => new ExportError({ message: `Failed to import JSON from ${filePath}: ${e}` }),
+    catch: (e) =>
+      new ExportError({
+        message: `Failed to import JSON from ${filePath}: ${describeUnknownError(e)}`,
+      }),
   });
 }
 
@@ -165,7 +171,10 @@ function importFromCsv(
 
       return importRows(db, filePath, rows, "csv");
     },
-    catch: (e) => new ExportError({ message: `Failed to import CSV from ${filePath}: ${e}` }),
+    catch: (e) =>
+      new ExportError({
+        message: `Failed to import CSV from ${filePath}: ${describeUnknownError(e)}`,
+      }),
   });
 }
 
@@ -311,13 +320,13 @@ function importRows(
 }
 
 function str(row: Record<string, unknown>, key: string): string {
-  return String(row[key] ?? "");
+  return stringifyRowValue(row[key]);
 }
 
 function nullStr(row: Record<string, unknown>, key: string): string | null {
   const val = row[key];
   if (val === null || val === undefined || val === "") return null;
-  return String(val);
+  return stringifyRowValue(val);
 }
 
 function num(row: Record<string, unknown>, key: string): number {
@@ -328,4 +337,31 @@ function nullNum(row: Record<string, unknown>, key: string): number | null {
   const val = row[key];
   if (val === null || val === undefined || val === "") return null;
   return Number(val);
+}
+
+function stringifyRowValue(value: unknown): string {
+  switch (typeof value) {
+    case "string":
+      return value;
+    case "number":
+    case "boolean":
+    case "bigint":
+      return String(value);
+    case "symbol":
+      return value.description == null ? "Symbol()" : `Symbol(${value.description})`;
+    case "undefined":
+      return "";
+    case "function":
+      return "function";
+    case "object":
+      if (value === null) {
+        return "";
+      }
+
+      try {
+        return JSON.stringify(value) ?? "";
+      } catch {
+        return "";
+      }
+  }
 }

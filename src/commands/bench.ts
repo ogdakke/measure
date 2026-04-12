@@ -37,7 +37,9 @@ export async function benchCommand(
   for (let i = 0; i < warmup; i++) {
     onProgress?.({ type: "warmup", index: i, total: warmup });
     const result = await executeCommand(command);
-    if (result.isErr()) return result;
+    if (result.isErr()) {
+      return Result.err<BenchResult, CommandError | DatabaseError>(result.error);
+    }
   }
 
   // Measured runs
@@ -45,7 +47,9 @@ export async function benchCommand(
 
   for (let i = 0; i < iterations; i++) {
     const result = await executeCommand(command);
-    if (result.isErr()) return result;
+    if (result.isErr()) {
+      return Result.err<BenchResult, CommandError | DatabaseError>(result.error);
+    }
 
     const execution = result.value;
     runs.push({ durationNs: execution.durationNs, exitCode: execution.exitCode });
@@ -58,7 +62,9 @@ export async function benchCommand(
       cwd: process.cwd(),
       benchGroup,
     });
-    if (saved.isErr()) return saved;
+    if (saved.isErr()) {
+      return Result.err<BenchResult, CommandError | DatabaseError>(saved.error);
+    }
 
     onProgress?.({
       type: "run",

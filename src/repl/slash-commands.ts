@@ -116,7 +116,7 @@ export function parseReplSlashCommand(input: string): {
   command: ReplSlashCommand | null;
   args: string[];
 } {
-  const [name, ...args] = input.trim().split(/\s+/);
+  const [name = "", ...args] = input.trim().split(/\s+/);
   const command = findReplSlashCommand(name);
   return { command, args };
 }

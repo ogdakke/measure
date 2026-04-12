@@ -1,7 +1,8 @@
 import { Result } from "better-result";
 import type { Database } from "bun:sqlite";
+import { writeFileSync } from "node:fs";
 import { getExportData } from "../db/queries.ts";
-import { ExportError, type DatabaseError } from "../errors.ts";
+import { ExportError, describeUnknownError, type DatabaseError } from "../errors.ts";
 import type { Measurement } from "../types.ts";
 
 export interface ExportResult {
@@ -22,7 +23,9 @@ export function exportCommand(
     command: commandFilter,
     host,
   });
-  if (result.isErr()) return result;
+  if (result.isErr()) {
+    return Result.err<ExportResult, DatabaseError | ExportError>(result.error);
+  }
 
   const measurements = result.value;
   const content = format === "json" ? toJson(measurements) : toCsv(measurements);
@@ -30,11 +33,16 @@ export function exportCommand(
   if (output) {
     const writeResult = Result.try({
       try: () => {
-        require("node:fs").writeFileSync(output, content, "utf-8");
+        writeFileSync(output, content, "utf-8");
       },
-      catch: (e) => new ExportError({ message: `Failed to write to ${output}: ${e}` }),
+      catch: (e) =>
+        new ExportError({
+          message: `Failed to write to ${output}: ${describeUnknownError(e)}`,
+        }),
     });
-    if (writeResult.isErr()) return writeResult;
+    if (writeResult.isErr()) {
+      return Result.err<ExportResult, DatabaseError | ExportError>(writeResult.error);
+    }
     return Result.ok({ count: measurements.length, path: output });
   } else {
     process.stdout.write(content);

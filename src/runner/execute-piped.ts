@@ -4,7 +4,7 @@ import { shellCommand } from "./shell.ts";
 import type { ExecutionResult } from "../types.ts";
 
 export interface PipedExecution {
-  proc: Subprocess;
+  proc: Subprocess<"pipe", "pipe", "pipe">;
   startNs: number;
 }
 

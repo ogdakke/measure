@@ -15,7 +15,9 @@ export function statsCommand(
     command: commandFilter,
     host,
   });
-  if (result.isErr()) return result;
+  if (result.isErr()) {
+    return Result.err<AggregateStats[], DatabaseError>(result.error);
+  }
 
   return Result.ok(aggregate(result.value));
 }

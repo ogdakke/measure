@@ -17,7 +17,9 @@ export async function runCommand(
   const project = detectProject(process.cwd());
 
   const result = await executeCommand(command);
-  if (result.isErr()) return result;
+  if (result.isErr()) {
+    return Result.err<Measurement, CommandError | DatabaseError>(result.error);
+  }
 
   const execution = result.value;
   const saved = insertMeasurement(db, {

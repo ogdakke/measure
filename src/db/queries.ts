@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { Result } from "better-result";
-import { DatabaseError } from "../errors.ts";
+import { DatabaseError, describeUnknownError } from "../errors.ts";
 import type { Measurement, SystemInfo, ExecutionResult, ExportFilters } from "../types.ts";
 
 /** The raw row shape returned by SQLite (snake_case column names). */
@@ -48,7 +48,10 @@ export interface InsertParams {
   benchGroup: string | null;
 }
 
-interface InsertBindings {
+type InsertBindings = Record<
+  string,
+  string | bigint | NodeJS.TypedArray | number | boolean | null
+> & {
   command: string;
   project: string | null;
   duration_ns: number;
@@ -66,7 +69,7 @@ interface InsertBindings {
   shell: string | null;
   bun_version: string;
   bench_group: string | null;
-}
+};
 
 export function insertMeasurement(
   db: Database,
@@ -112,7 +115,10 @@ export function insertMeasurement(
 
       return rowToMeasurement(row);
     },
-    catch: (e) => new DatabaseError({ message: `Failed to insert measurement: ${e}` }),
+    catch: (e) =>
+      new DatabaseError({
+        message: `Failed to insert measurement: ${describeUnknownError(e)}`,
+      }),
   });
 }
 
@@ -130,7 +136,8 @@ export function getHistory(
         .all({ ...bindings, limit: filters.limit });
       return rows.map(rowToMeasurement);
     },
-    catch: (e) => new DatabaseError({ message: `Failed to query history: ${e}` }),
+    catch: (e) =>
+      new DatabaseError({ message: `Failed to query history: ${describeUnknownError(e)}` }),
   });
 }
 
@@ -148,7 +155,8 @@ export function getStatsData(
         .all(bindings);
       return rows.map(rowToMeasurement);
     },
-    catch: (e) => new DatabaseError({ message: `Failed to query stats: ${e}` }),
+    catch: (e) =>
+      new DatabaseError({ message: `Failed to query stats: ${describeUnknownError(e)}` }),
   });
 }
 
@@ -166,7 +174,10 @@ export function getExportData(
         .all(bindings);
       return rows.map(rowToMeasurement);
     },
-    catch: (e) => new DatabaseError({ message: `Failed to query export data: ${e}` }),
+    catch: (e) =>
+      new DatabaseError({
+        message: `Failed to query export data: ${describeUnknownError(e)}`,
+      }),
   });
 }
 

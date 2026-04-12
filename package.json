@@ -33,7 +33,7 @@
     "dev": "bun run src/index.ts",
     "test": "bun test",
     "lint": "oxlint",
-    "lint:all": "bun run lint && bun test",
+    "lint:all": "oxlint --type-aware --type-check",
     "fmt": "oxfmt .",
     "changeset": "changeset",
     "version-packages": "changeset version",
