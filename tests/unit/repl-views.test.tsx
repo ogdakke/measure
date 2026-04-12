@@ -1,7 +1,12 @@
 import React from "react";
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "ink";
-import { getReplPrompt, shouldShowReplIntro } from "../../src/ui/Repl.tsx";
+import {
+  formatCancelledCommandOutput,
+  getReplPrompt,
+  getRunningCommandStatus,
+  shouldShowReplIntro,
+} from "../../src/ui/Repl.tsx";
 import { HistoryView } from "../../src/ui/HistoryView.tsx";
 import { StatsView } from "../../src/ui/StatsView.tsx";
 import { shouldNavigateSlashMatches } from "../../src/ui/TextInput.tsx";
@@ -85,6 +90,16 @@ describe("REPL views", () => {
   test("REPL intro only shows before the first submission", () => {
     expect(shouldShowReplIntro(false)).toBe(true);
     expect(shouldShowReplIntro(true)).toBe(false);
+  });
+
+  test("running command status explains how to cancel", () => {
+    expect(getRunningCommandStatus(false)).toContain("Press Esc to cancel");
+    expect(getRunningCommandStatus(true)).toBe("Cancelling command...");
+  });
+
+  test("cancelled commands keep prior output and add a cancelled marker", () => {
+    expect(formatCancelledCommandOutput("line 1\nline 2\n")).toBe("line 1\nline 2\n\n[cancelled]");
+    expect(formatCancelledCommandOutput("")).toBe("[cancelled]");
   });
 
   test("HistoryView keeps a single row on narrower terminals", () => {

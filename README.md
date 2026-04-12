@@ -48,6 +48,9 @@ Open the interactive REPL:
 measure
 ```
 
+The REPL is best for one-off commands. If you accidentally start an interactive or long-running command like
+`cat`, `git add -p`, or `bun run dev`, press `Esc` to cancel the child process and return to the REPL.
+
 ## Development
 
 Install dependencies:

@@ -1,4 +1,5 @@
 import type { Subprocess } from "bun";
+import { platform } from "node:os";
 import { shellCommand } from "./shell.ts";
 import type { ExecutionResult } from "../types.ts";
 
@@ -15,8 +16,30 @@ export function spawnPiped(command: string): PipedExecution {
     stdout: "pipe",
     stderr: "pipe",
     stdin: "pipe",
+    detached: platform() !== "win32",
   });
   return { proc, startNs };
+}
+
+/** Cancel a piped process without tearing down the surrounding REPL. */
+export function cancelPipedExecution(
+  execution: PipedExecution,
+  signal: NodeJS.Signals = "SIGTERM",
+) {
+  if (execution.proc.killed) {
+    return;
+  }
+
+  if (platform() !== "win32") {
+    try {
+      process.kill(-execution.proc.pid, signal);
+      return;
+    } catch {
+      // Fall back to the direct child kill below if process-group signaling fails.
+    }
+  }
+
+  execution.proc.kill(signal);
 }
 
 /** Collect the execution result after a piped process exits. */

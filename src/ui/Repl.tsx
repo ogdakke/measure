@@ -1,7 +1,12 @@
-import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { Box, Text, Static, useApp, useStdout, renderToString } from "ink";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { Box, Text, Static, useApp, useStdout, useInput, renderToString } from "ink";
 import type { Database } from "bun:sqlite";
-import { spawnPiped, collectResult } from "../runner/execute-piped.ts";
+import {
+  spawnPiped,
+  cancelPipedExecution,
+  collectResult,
+  type PipedExecution,
+} from "../runner/execute-piped.ts";
 import { insertMeasurement } from "../db/queries.ts";
 import { getSystemInfo } from "../system/metadata.ts";
 import { detectProject } from "../system/project.ts";
@@ -45,6 +50,17 @@ function renderForTerminal(node: ReactNode): string {
   return renderToString(node, { columns: process.stdout.columns ?? 80 });
 }
 
+export function formatCancelledCommandOutput(output: string): string {
+  const trimmed = output.trimEnd();
+  return trimmed ? `${trimmed}\n\n[cancelled]` : "[cancelled]";
+}
+
+export function getRunningCommandStatus(isCancelling: boolean): string {
+  return isCancelling
+    ? "Cancelling command..."
+    : "Running command. Press Esc to cancel and return to the REPL.";
+}
+
 export function getReplPrompt(hasSubmittedCommand: boolean): string {
   return hasSubmittedCommand ? "> " : "measure > ";
 }
@@ -85,6 +101,9 @@ export function Repl({ db, username }: ReplProps) {
   const [version, setVersion] = useState("0.1.0");
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [hasSubmittedCommand, setHasSubmittedCommand] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const activeExecutionRef = useRef<PipedExecution | null>(null);
+  const cancelRequestedRef = useRef(false);
 
   const system = getSystemInfo(username);
   const project = detectProject(process.cwd());
@@ -108,6 +127,30 @@ export function Repl({ db, username }: ReplProps) {
     })();
   }, [waitUntilRenderFlush, write]);
 
+  const cancelRunningCommand = useCallback(() => {
+    const execution = activeExecutionRef.current;
+    if (!execution || cancelRequestedRef.current) {
+      return;
+    }
+
+    cancelRequestedRef.current = true;
+    setIsCancelling(true);
+    cancelPipedExecution(execution);
+  }, []);
+
+  useInput(
+    (input, key) => {
+      if (!isRunning) {
+        return;
+      }
+
+      if (key.escape || (key.ctrl && input === "c")) {
+        cancelRunningCommand();
+      }
+    },
+    { isActive: isRunning },
+  );
+
   const handleSlashCommand = useCallback(
     (input: string) => {
       const { command, args } = parseReplSlashCommand(input);
@@ -119,6 +162,7 @@ export function Repl({ db, username }: ReplProps) {
               "",
               "  REPL Commands:",
               ...formatReplSlashCommandHelpLines(),
+              "  Running commands: press Esc to cancel the current command and keep the REPL open",
               "  Slash menu: type / to browse, Up/Down to select, Enter to run,",
               "              Tab to prefill commands that take input",
               "  Editing: arrows/home/end, Ctrl+A/E/B/F/D/W/U/K/L, Ctrl+P/N history,",
@@ -155,7 +199,14 @@ export function Repl({ db, username }: ReplProps) {
           const format = (args[0] === "json" ? "json" : "csv") as "csv" | "json";
           const date = new Date().toISOString().slice(0, 10);
           const filename = args[1] ?? join(process.cwd(), `measure-export-${date}.${format}`);
-          const result = exportCommand(currentDb, format, undefined, undefined, undefined, filename);
+          const result = exportCommand(
+            currentDb,
+            format,
+            undefined,
+            undefined,
+            undefined,
+            filename,
+          );
           if (result.isErr()) {
             addInfoItem(`  Error: ${result.error.message}`);
           } else if (result.value.path) {
@@ -251,11 +302,14 @@ export function Repl({ db, username }: ReplProps) {
 
       // Execute and measure the command
       setIsRunning(true);
+      setIsCancelling(false);
       setRunningCommand(input);
       setRunningOutput("");
 
       try {
         const execution = spawnPiped(input);
+        activeExecutionRef.current = execution;
+        cancelRequestedRef.current = false;
         const decoder = new TextDecoder();
         let capturedOutput = "";
 
@@ -293,6 +347,21 @@ export function Repl({ db, username }: ReplProps) {
 
         const exitCode = await execution.proc.exited;
         await Promise.all([stdoutTask, stderrTask]);
+        const wasCancelled = cancelRequestedRef.current;
+
+        if (wasCancelled) {
+          setItems((prev) => [
+            ...prev,
+            {
+              id: nextId++,
+              type: "command",
+              command: input,
+              output: formatCancelledCommandOutput(capturedOutput),
+            },
+          ]);
+          return;
+        }
+
         const exec = collectResult(execution, exitCode);
 
         // Save to DB
@@ -319,7 +388,10 @@ export function Repl({ db, username }: ReplProps) {
       } catch (e) {
         addInfoItem(`  Error: ${String(e)}`);
       } finally {
+        activeExecutionRef.current = null;
+        cancelRequestedRef.current = false;
         setIsRunning(false);
+        setIsCancelling(false);
         setRunningCommand("");
         setRunningOutput("");
       }
@@ -345,7 +417,9 @@ export function Repl({ db, username }: ReplProps) {
             <Text color="cyan">{username}</Text>
           </Box>
           <Box paddingLeft={2}>
-            <Text dimColor>Type a command to measure, or start with / for slash commands.</Text>
+            <Text dimColor>
+              Type a one-off command to measure, or start with / for slash commands.
+            </Text>
           </Box>
         </Box>
       )}
@@ -362,7 +436,14 @@ export function Repl({ db, username }: ReplProps) {
         )}
       </Static>
 
-      {isRunning && <CommandItem command={runningCommand} output={runningOutput || undefined} />}
+      {isRunning && (
+        <Box flexDirection="column" marginBottom={1}>
+          <CommandItem command={runningCommand} output={runningOutput || undefined} />
+          <Box paddingLeft={2}>
+            <Text dimColor>{getRunningCommandStatus(isCancelling)}</Text>
+          </Box>
+        </Box>
+      )}
 
       <Box>
         {!isRunning && (
