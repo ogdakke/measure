@@ -8,9 +8,11 @@ import { formatSummary } from "./shared.ts";
 import { historyCommand } from "./history.ts";
 import { statsCommand } from "./stats.ts";
 import { exportCommand } from "./export.ts";
+import { importCommand } from "./import.ts";
+import { dbListCommand, dbCreateCommand, dbUseCommand } from "./db.ts";
 import { systemCommand } from "./system.ts";
 import { join } from "node:path";
-import { bold, dim, cyan } from "../format/colors.ts";
+import { bold, dim, cyan, red } from "../format/colors.ts";
 
 export async function startRepl(
   db: Database,
@@ -105,6 +107,8 @@ function handleDotCommand(
       console.log(`  ${dim(".history [N]")}     Show last N measurements (default 10)`);
       console.log(`  ${dim(".stats")}           Show aggregated stats`);
       console.log(`  ${dim(".export [csv|json] [file]")} Export to file (defaults to ./measure-export.csv)`);
+      console.log(`  ${dim(".import <files...>")} Import .db/.csv/.json files`);
+      console.log(`  ${dim(".db [list|create|use] [name]")} Manage databases`);
       console.log(`  ${dim(".system")}          Show system info`);
       console.log(`  ${dim(".clear")}           Clear screen`);
       console.log(`  ${dim(".exit / .quit")}    Exit`);
@@ -125,6 +129,42 @@ function handleDotCommand(
       const format = (args[0] === "json" ? "json" : "csv") as "csv" | "json";
       const filename = args[1] ?? defaultExportPath(format);
       exportCommand(db, format, undefined, undefined, undefined, filename);
+      break;
+    }
+
+    case ".import": {
+      if (args.length === 0) {
+        console.log(dim("  Usage: .import <file1.db|.csv|.json> [file2...]"));
+        break;
+      }
+      const result = importCommand(db, args);
+      if (result.isErr()) {
+        console.error(red(`  Error: ${result.error.message}`));
+      }
+      break;
+    }
+
+    case ".db": {
+      const action = args[0] ?? "list";
+      if (action === "list") {
+        dbListCommand();
+      } else if (action === "create") {
+        if (!args[1]) {
+          console.log(dim("  Usage: .db create <name>"));
+        } else {
+          const result = dbCreateCommand(args[1]);
+          if (result.isErr()) console.error(red(`  Error: ${result.error.message}`));
+        }
+      } else if (action === "use") {
+        if (!args[1]) {
+          console.log(dim("  Usage: .db use <name>"));
+        } else {
+          const result = dbUseCommand(args[1]);
+          if (result.isErr()) console.error(red(`  Error: ${result.error.message}`));
+        }
+      } else {
+        console.log(dim(`  Unknown db action: ${action}. Use list, create, or use.`));
+      }
       break;
     }
 

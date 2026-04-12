@@ -96,4 +96,8 @@ export type ParsedCommand =
     }
   | { command: "system" }
   | { command: "help" }
-  | { command: "version" };
+  | { command: "version" }
+  | { command: "db"; action: "list" }
+  | { command: "db"; action: "create"; name: string }
+  | { command: "db"; action: "use"; name: string }
+  | { command: "import"; files: string[] };
