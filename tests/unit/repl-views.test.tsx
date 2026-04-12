@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "ink";
+import { getReplPrompt, shouldShowReplIntro } from "../../src/ui/Repl.tsx";
 import { HistoryView } from "../../src/ui/HistoryView.tsx";
 import { StatsView } from "../../src/ui/StatsView.tsx";
 import { shouldNavigateSlashMatches } from "../../src/ui/TextInput.tsx";
@@ -74,6 +75,16 @@ describe("REPL views", () => {
         downArrow: true,
       }),
     ).toBe(false);
+  });
+
+  test("REPL prompt switches to a compact form after the first submission", () => {
+    expect(getReplPrompt(false)).toBe("measure > ");
+    expect(getReplPrompt(true)).toBe("> ");
+  });
+
+  test("REPL intro only shows before the first submission", () => {
+    expect(shouldShowReplIntro(false)).toBe(true);
+    expect(shouldShowReplIntro(true)).toBe(false);
   });
 
   test("HistoryView keeps a single row on narrower terminals", () => {

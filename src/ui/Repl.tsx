@@ -45,6 +45,35 @@ function renderForTerminal(node: ReactNode): string {
   return renderToString(node, { columns: process.stdout.columns ?? 80 });
 }
 
+export function getReplPrompt(hasSubmittedCommand: boolean): string {
+  return hasSubmittedCommand ? "> " : "measure > ";
+}
+
+export function shouldShowReplIntro(hasSubmittedCommand: boolean): boolean {
+  return !hasSubmittedCommand;
+}
+
+function CommandItem({
+  command,
+  output,
+  exec,
+}: {
+  command: string;
+  output?: string;
+  exec?: ExecutionResult;
+}) {
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Box>
+        <Text dimColor>&gt; </Text>
+        <Text>{command}</Text>
+      </Box>
+      {output && <Text>{output}</Text>}
+      {exec && <Summary exec={exec} />}
+    </Box>
+  );
+}
+
 export function Repl({ db, username }: ReplProps) {
   const { exit } = useApp();
   const [currentDb, setCurrentDb] = useState(db);
@@ -54,6 +83,7 @@ export function Repl({ db, username }: ReplProps) {
   const [runningOutput, setRunningOutput] = useState("");
   const [version, setVersion] = useState("0.1.0");
   const [inputHistory, setInputHistory] = useState<string[]>([]);
+  const [hasSubmittedCommand, setHasSubmittedCommand] = useState(false);
 
   const system = getSystemInfo(username);
   const project = detectProject(process.cwd());
@@ -201,6 +231,7 @@ export function Repl({ db, username }: ReplProps) {
   const handleSubmit = useCallback(
     async (input: string) => {
       if (!input.trim()) return;
+      setHasSubmittedCommand(true);
 
       // Add to input history (most recent first)
       setInputHistory((prev) => [input, ...prev.filter((h) => h !== input)]);
@@ -266,19 +297,15 @@ export function Repl({ db, username }: ReplProps) {
           benchGroup: null,
         });
 
-        // Add to history
-        const summaryStr = renderForTerminal(<Summary exec={exec} />);
+        // Keep each finished command as a single history block so its output has context.
         setItems((prev) => [
           ...prev,
-          ...(capturedOutput
-            ? [{ id: nextId++, type: "info" as const, output: capturedOutput }]
-            : []),
           {
             id: nextId++,
             type: "command",
             command: input,
             exec,
-            output: summaryStr,
+            output: capturedOutput || undefined,
           },
         ]);
       } catch (e) {
@@ -294,45 +321,45 @@ export function Repl({ db, username }: ReplProps) {
 
   return (
     <>
-      <Box flexDirection="column" paddingBottom={1}>
-        <Box paddingLeft={2} gap={1}>
-          <Text bold>measure</Text>
-          <Text>v{version}</Text>
-          <Text dimColor>|</Text>
-          <Text>project: </Text>
-          <Text color="cyan">{project ?? "unknown"}</Text>
-          <Text dimColor>|</Text>
-          <Text>host: </Text>
-          <Text color="cyan">{system.hostname}</Text>
-          <Text dimColor>|</Text>
-          <Text>user: </Text>
-          <Text color="cyan">{username}</Text>
+      {shouldShowReplIntro(hasSubmittedCommand) && (
+        <Box flexDirection="column" paddingBottom={1}>
+          <Box paddingLeft={2} gap={1}>
+            <Text bold>measure</Text>
+            <Text>v{version}</Text>
+            <Text dimColor>|</Text>
+            <Text>project: </Text>
+            <Text color="cyan">{project ?? "unknown"}</Text>
+            <Text dimColor>|</Text>
+            <Text>host: </Text>
+            <Text color="cyan">{system.hostname}</Text>
+            <Text dimColor>|</Text>
+            <Text>user: </Text>
+            <Text color="cyan">{username}</Text>
+          </Box>
+          <Box paddingLeft={2}>
+            <Text dimColor>Type a command to measure, or start with / for slash commands.</Text>
+          </Box>
         </Box>
-        <Box paddingLeft={2}>
-          <Text dimColor>Type a command to measure, or start with / for slash commands.</Text>
-        </Box>
-      </Box>
+      )}
 
       <Static items={items}>
         {(item) => (
           <Box key={`item-${item.id}`} flexDirection="column">
-            {item.output && <Text>{item.output}</Text>}
+            {item.type === "command" && item.command ? (
+              <CommandItem command={item.command} output={item.output} exec={item.exec} />
+            ) : (
+              item.output && <Text>{item.output}</Text>
+            )}
           </Box>
         )}
       </Static>
 
-      {isRunning && runningOutput && (
-        <Box flexDirection="column">
-          <Text>{runningOutput}</Text>
-        </Box>
-      )}
+      {isRunning && <CommandItem command={runningCommand} output={runningOutput || undefined} />}
 
       <Box>
-        {isRunning ? (
-          <Text dimColor> Running: {runningCommand}...</Text>
-        ) : (
+        {!isRunning && (
           <TextInput
-            prompt="measure > "
+            prompt={getReplPrompt(hasSubmittedCommand)}
             onSubmit={handleSubmit}
             active={!isRunning}
             history={inputHistory}
