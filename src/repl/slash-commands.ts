@@ -81,10 +81,34 @@ export interface ReplSlashCommandMatch {
   matchedName: string;
 }
 
+const REPL_SLASH_COMMAND_DESCRIPTION_GAP = 4;
+
+export function getReplSlashCommandHelpLabelWidth(
+  commands: ReplSlashCommand[] = REPL_SLASH_COMMANDS,
+): number {
+  return (
+    Math.max(...commands.map((command) => command.helpLabel.length)) +
+    REPL_SLASH_COMMAND_DESCRIPTION_GAP
+  );
+}
+
+export function formatReplSlashCommandHelpLabel(
+  helpLabel: string,
+  commands: ReplSlashCommand[] = REPL_SLASH_COMMANDS,
+): string {
+  return helpLabel.padEnd(getReplSlashCommandHelpLabelWidth(commands));
+}
+
+export function getReplSlashCommandHelpLabelPadding(
+  helpLabel: string,
+  commands: ReplSlashCommand[] = REPL_SLASH_COMMANDS,
+): string {
+  return " ".repeat(getReplSlashCommandHelpLabelWidth(commands) - helpLabel.length);
+}
+
 export function formatReplSlashCommandHelpLines(): string[] {
-  const width = Math.max(...REPL_SLASH_COMMANDS.map((command) => command.helpLabel.length)) + 2;
   return REPL_SLASH_COMMANDS.map(
-    (command) => `  ${command.helpLabel.padEnd(width)}${command.description}`,
+    (command) => `  ${formatReplSlashCommandHelpLabel(command.helpLabel)}${command.description}`,
   );
 }
 

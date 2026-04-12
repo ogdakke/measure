@@ -22,6 +22,8 @@ Default to using Bun instead of Node.js.
 
 Use `bun test` to run tests.
 
+Always run `bun run lint:all` to verify your changes before wrapping up.
+
 ```ts#index.test.ts
 import { test, expect } from "bun:test";
 

@@ -50,6 +50,8 @@ measure
 
 The REPL is best for one-off commands. If you accidentally start an interactive or long-running command like
 `cat`, `git add -p`, or `bun run dev`, press `Esc` to cancel the child process and return to the REPL.
+If you want to keep a long-running command alive, press `Ctrl+B` to move it into the background shells panel,
+then use the shells UI below the prompt to inspect logs or stop it later.
 
 ## Development
 
@@ -69,4 +71,10 @@ Run tests:
 
 ```bash
 bun test
+```
+
+Run the full verification pass:
+
+```bash
+bun run lint:all
 ```

@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import { REPL_SLASH_COMMANDS } from "../repl/slash-commands.ts";
+import { formatReplSlashCommandHelpLabel, REPL_SLASH_COMMANDS } from "../repl/slash-commands.ts";
 
 export function HelpView() {
   return (
@@ -31,7 +31,7 @@ export function HelpView() {
       {REPL_SLASH_COMMANDS.map((command) => (
         <Text key={command.command}>
           {"  "}
-          {command.helpLabel.padEnd(30)}
+          {formatReplSlashCommandHelpLabel(command.helpLabel)}
           {command.description}
         </Text>
       ))}

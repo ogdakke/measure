@@ -3,10 +3,12 @@ import {
   findReplSlashCommand,
   formatReplSlashCommandHelpLines,
   getReplSlashCommandMatches,
+  getReplSlashCommandHelpLabelPadding,
   getReplSlashCommandPrefill,
   getReplSlashCommandQuery,
   getReplSlashCommandSubmitValue,
   parseReplSlashCommand,
+  REPL_SLASH_COMMANDS,
 } from "../../src/repl/slash-commands.ts";
 
 describe("slash commands", () => {
@@ -60,5 +62,27 @@ describe("slash commands", () => {
 
     expect(lines.some((line) => line.includes("/history [N]"))).toBe(true);
     expect(lines.some((line) => line.includes("/exit | /quit"))).toBe(true);
+  });
+
+  test("aligns help descriptions to a shared column with a four-space gap", () => {
+    const lines = formatReplSlashCommandHelpLines();
+    const descriptionStarts = REPL_SLASH_COMMANDS.map((command, index) =>
+      lines[index]!.indexOf(command.description),
+    );
+    const expectedStart =
+      2 + Math.max(...REPL_SLASH_COMMANDS.map((command) => command.helpLabel.length)) + 4;
+
+    expect(new Set(descriptionStarts).size).toBe(1);
+    expect(descriptionStarts[0]).toBe(expectedStart);
+  });
+
+  test("returns only the alignment spaces needed after a label", () => {
+    const padding = getReplSlashCommandHelpLabelPadding("/help");
+    const expectedLength =
+      Math.max(...REPL_SLASH_COMMANDS.map((command) => command.helpLabel.length)) +
+      4 -
+      "/help".length;
+
+    expect(padding).toBe(" ".repeat(expectedLength));
   });
 });

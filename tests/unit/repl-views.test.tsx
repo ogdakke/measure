@@ -5,11 +5,16 @@ import {
   formatCancelledCommandOutput,
   getReplPrompt,
   getRunningCommandStatus,
+  getShellCountLabel,
+  getShellLogLines,
+  getShellPreviewLine,
+  getShellStatusLabel,
+  getVisibleShellWindow,
   shouldShowReplIntro,
 } from "../../src/ui/Repl.tsx";
 import { HistoryView } from "../../src/ui/HistoryView.tsx";
 import { StatsView } from "../../src/ui/StatsView.tsx";
-import { shouldNavigateSlashMatches } from "../../src/ui/TextInput.tsx";
+import { shouldFocusShellsBoundary, shouldNavigateSlashMatches } from "../../src/ui/TextInput.tsx";
 import type { AggregateStats, Measurement } from "../../src/types.ts";
 
 function stripAnsi(value: string): string {
@@ -93,13 +98,50 @@ describe("REPL views", () => {
   });
 
   test("running command status explains how to cancel", () => {
-    expect(getRunningCommandStatus(false)).toContain("Press Esc to cancel");
+    expect(getRunningCommandStatus(false)).toContain("Press Ctrl+B");
+    expect(getRunningCommandStatus(false)).toContain("Esc to cancel");
     expect(getRunningCommandStatus(true)).toBe("Cancelling command...");
   });
 
   test("cancelled commands keep prior output and add a cancelled marker", () => {
     expect(formatCancelledCommandOutput("line 1\nline 2\n")).toBe("line 1\nline 2\n\n[cancelled]");
     expect(formatCancelledCommandOutput("")).toBe("[cancelled]");
+  });
+
+  test("down can hand off focus to the shells box once history is exhausted", () => {
+    expect(
+      shouldFocusShellsBoundary(-1, "", false, {
+        downArrow: true,
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFocusShellsBoundary(0, "", false, {
+        downArrow: true,
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldFocusShellsBoundary(-1, "draft", false, {
+        downArrow: true,
+      }),
+    ).toBe(false);
+  });
+
+  test("shell helpers summarize counts, windows, and previews", () => {
+    expect(getShellCountLabel(1)).toBe("1 shell");
+    expect(getShellCountLabel(3)).toBe("3 shells");
+    expect(getVisibleShellWindow(12, 7, 5)).toEqual({ start: 5, end: 10 });
+    expect(getShellPreviewLine("booting\nready on http://localhost:3000\n")).toBe(
+      "ready on http://localhost:3000",
+    );
+  });
+
+  test("shell helpers format statuses and log tails", () => {
+    expect(getShellStatusLabel({ status: "running" })).toBe("running");
+    expect(getShellStatusLabel({ status: "failed", exitCode: 42 })).toBe("failed (42)");
+    expect(getShellLogLines("1\n2\n3\n4\n5\n", 0, 3)).toEqual(["4", "5", ""]);
+    expect(getShellLogLines("1\n2\n3\n4\n5\n", 2, 3)).toEqual(["2", "3", "4"]);
   });
 
   test("HistoryView keeps a single row on narrower terminals", () => {

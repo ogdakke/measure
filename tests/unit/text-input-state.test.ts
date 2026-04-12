@@ -168,12 +168,7 @@ describe("text input state", () => {
 
   test("supports ctrl+l to clear the screen without discarding input", () => {
     const state = typeText(createTextInputState(), "draft command");
-    const result = applyTextInputKey(
-      state,
-      "l",
-      key({ ctrl: true }),
-      [],
-    );
+    const result = applyTextInputKey(state, "l", key({ ctrl: true }), []);
 
     expect(result.clearScreen).toBe(true);
     expect(result.submit).toBeUndefined();

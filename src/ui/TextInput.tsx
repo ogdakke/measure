@@ -4,15 +4,18 @@ import { applyTextInputKey, createTextInputState } from "./text-input-state.ts";
 import type { ReplSlashCommand } from "../repl/slash-commands.ts";
 import {
   getReplSlashCommandMatches,
+  getReplSlashCommandHelpLabelPadding,
   getReplSlashCommandPrefill,
   getReplSlashCommandQuery,
   getReplSlashCommandSubmitValue,
+  REPL_SLASH_COMMANDS,
 } from "../repl/slash-commands.ts";
 
 interface TextInputProps {
   prompt: string;
   onSubmit: (value: string) => void;
   onClear?: () => void;
+  onNavigateDownBoundary?: () => void;
   active?: boolean;
   history?: string[];
   slashCommands?: ReplSlashCommand[];
@@ -26,10 +29,20 @@ export function shouldNavigateSlashMatches(
   return historyIndex === -1 && hasSlashMatches && (key.upArrow || key.downArrow);
 }
 
+export function shouldFocusShellsBoundary(
+  historyIndex: number,
+  value: string,
+  hasSlashMatches: boolean,
+  key: { downArrow: boolean },
+): boolean {
+  return key.downArrow && !hasSlashMatches && historyIndex === -1 && value.length === 0;
+}
+
 export function TextInput({
   prompt,
   onSubmit,
   onClear,
+  onNavigateDownBoundary,
   active = true,
   history = [],
   slashCommands = [],
@@ -42,6 +55,7 @@ export function TextInput({
       ? []
       : getReplSlashCommandMatches(slashQuery, slashCommands);
   const activeSlashMatch = slashMatches[selectedSlashIndex] ?? slashMatches[0];
+  const slashHelpLabelCommands = slashCommands.length > 0 ? slashCommands : REPL_SLASH_COMMANDS;
 
   useEffect(() => {
     if (slashMatches.length === 0) {
@@ -105,6 +119,13 @@ export function TextInput({
         return;
       }
 
+      if (
+        shouldFocusShellsBoundary(state.historyIndex, state.value, activeSlashMatch != null, key)
+      ) {
+        onNavigateDownBoundary?.();
+        return;
+      }
+
       const result = applyTextInputKey(state, input, key, history);
       if (result.submit !== undefined) {
         setState(result.state);
@@ -159,12 +180,17 @@ export function TextInput({
         <Box flexDirection="column" marginLeft={2}>
           {slashMatches.map((match, index) => {
             const isSelected = index === selectedSlashIndex;
+            const helpLabelPadding = getReplSlashCommandHelpLabelPadding(
+              match.command.helpLabel,
+              slashHelpLabelCommands,
+            );
             return (
               <Box key={match.command.command}>
                 <Text color={isSelected ? "cyan" : undefined} inverse={isSelected}>
                   {match.command.helpLabel}
                 </Text>
-                <Text dimColor> {match.command.description}</Text>
+                <Text>{helpLabelPadding}</Text>
+                <Text dimColor>{match.command.description}</Text>
               </Box>
             );
           })}

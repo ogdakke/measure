@@ -1,35 +1,36 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
-import { Box, Text, Static, useApp, useStdout, useInput, renderToString } from "ink";
 import type { Database } from "bun:sqlite";
-import {
-  spawnPiped,
-  cancelPipedExecution,
-  collectResult,
-  type PipedExecution,
-} from "../runner/execute-piped.ts";
-import { insertMeasurement } from "../db/queries.ts";
-import { getSystemInfo } from "../system/metadata.ts";
-import { detectProject } from "../system/project.ts";
-import { historyCommand } from "../commands/history.ts";
-import { statsCommand } from "../commands/stats.ts";
-import { exportCommand } from "../commands/export.ts";
-import { importCommand } from "../commands/import.ts";
-import { dbListCommand, dbCreateCommand, dbUseCommand } from "../commands/db.ts";
-import { systemCommand } from "../commands/system.ts";
-import { TextInput } from "./TextInput.tsx";
-import { Summary } from "./Summary.tsx";
-import { HistoryView } from "./HistoryView.tsx";
-import { StatsView } from "./StatsView.tsx";
-import { SystemView } from "./SystemView.tsx";
-import { DbListView } from "./DbListView.tsx";
-import { ImportView } from "./ImportView.tsx";
+import { Box, renderToString, Static, Text, useApp, useInput, useStdout } from "ink";
 import { join } from "node:path";
-import type { ExecutionResult } from "../types.ts";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { dbCreateCommand, dbListCommand, dbUseCommand } from "../commands/db.ts";
+import { exportCommand } from "../commands/export.ts";
+import { historyCommand } from "../commands/history.ts";
+import { importCommand } from "../commands/import.ts";
+import { statsCommand } from "../commands/stats.ts";
+import { systemCommand } from "../commands/system.ts";
+import { insertMeasurement } from "../db/queries.ts";
+import { formatDuration } from "../format/units.ts";
 import {
   formatReplSlashCommandHelpLines,
   parseReplSlashCommand,
   REPL_SLASH_COMMANDS,
 } from "../repl/slash-commands.ts";
+import {
+  cancelPipedExecution,
+  collectResult,
+  spawnPiped,
+  type PipedExecution,
+} from "../runner/execute-piped.ts";
+import { getSystemInfo } from "../system/metadata.ts";
+import { detectProject } from "../system/project.ts";
+import type { ExecutionResult } from "../types.ts";
+import { DbListView } from "./DbListView.tsx";
+import { HistoryView } from "./HistoryView.tsx";
+import { ImportView } from "./ImportView.tsx";
+import { StatsView } from "./StatsView.tsx";
+import { Summary } from "./Summary.tsx";
+import { SystemView } from "./SystemView.tsx";
+import { TextInput } from "./TextInput.tsx";
 
 interface ReplProps {
   db: Database;
@@ -44,10 +45,37 @@ interface HistoryItem {
   exec?: ExecutionResult;
 }
 
-let nextId = 0;
+export type ShellStatus = "running" | "stopping" | "exited" | "failed" | "cancelled";
+
+interface ShellSession {
+  id: number;
+  command: string;
+  output: string;
+  status: ShellStatus;
+  startedAtNs: number;
+  endedAtNs?: number;
+  exitCode?: number;
+  isBackground: boolean;
+  collectMeasurement: boolean;
+}
+
+type ShellUiMode = "closed" | "badge" | "picker" | "logs";
+
+const SHELL_ACCENT_COLOR = "cyanBright";
+const MAX_SHELL_OUTPUT_CHARS = 120_000;
+const MAX_VISIBLE_SHELLS = 8;
+const LOG_PANEL_LINE_COUNT = 12;
+
+let nextHistoryId = 0;
+let nextShellId = 0;
 
 function renderForTerminal(node: ReactNode): string {
   return renderToString(node, { columns: process.stdout.columns ?? 80 });
+}
+
+function appendShellOutput(output: string, chunk: string): string {
+  const next = output + chunk;
+  return next.length <= MAX_SHELL_OUTPUT_CHARS ? next : next.slice(-MAX_SHELL_OUTPUT_CHARS);
 }
 
 export function formatCancelledCommandOutput(output: string): string {
@@ -58,7 +86,7 @@ export function formatCancelledCommandOutput(output: string): string {
 export function getRunningCommandStatus(isCancelling: boolean): string {
   return isCancelling
     ? "Cancelling command..."
-    : "Running command. Press Esc to cancel and return to the REPL.";
+    : "Running command. Press Ctrl+B to send it to shells, or Esc to cancel.";
 }
 
 export function getReplPrompt(hasSubmittedCommand: boolean): string {
@@ -67,6 +95,102 @@ export function getReplPrompt(hasSubmittedCommand: boolean): string {
 
 export function shouldShowReplIntro(hasSubmittedCommand: boolean): boolean {
   return !hasSubmittedCommand;
+}
+
+export function getShellCountLabel(count: number): string {
+  return `${count} shell${count === 1 ? "" : "s"}`;
+}
+
+export function getVisibleShellWindow(
+  total: number,
+  selected: number,
+  windowSize = MAX_VISIBLE_SHELLS,
+) {
+  if (total <= windowSize) {
+    return { start: 0, end: total };
+  }
+
+  const safeSelected = Math.min(Math.max(selected, 0), total - 1);
+  const halfWindow = Math.floor(windowSize / 2);
+  const start = Math.min(Math.max(safeSelected - halfWindow, 0), total - windowSize);
+  return { start, end: start + windowSize };
+}
+
+function getShellOutputLines(output: string): string[] {
+  const normalized = output.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (!normalized) {
+    return [];
+  }
+  return normalized.split("\n");
+}
+
+export function getShellPreviewLine(output: string): string | undefined {
+  const lines = getShellOutputLines(output);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]?.trim();
+    if (line) {
+      return line;
+    }
+  }
+  return undefined;
+}
+
+export function getShellStatusLabel(shell: Pick<ShellSession, "status" | "exitCode">): string {
+  switch (shell.status) {
+    case "running":
+      return "running";
+    case "stopping":
+      return "stopping";
+    case "exited":
+      return "done";
+    case "failed":
+      return shell.exitCode == null ? "failed" : `failed (${shell.exitCode})`;
+    case "cancelled":
+      return "cancelled";
+    default:
+      return shell.status;
+  }
+}
+
+function getShellStatusColor(status: ShellStatus): string {
+  switch (status) {
+    case "running":
+      return "green";
+    case "stopping":
+      return "yellow";
+    case "failed":
+      return "red";
+    case "cancelled":
+      return "gray";
+    case "exited":
+      return "white";
+    default:
+      return "white";
+  }
+}
+
+export function getShellRuntimeLabel(
+  shell: Pick<ShellSession, "startedAtNs" | "endedAtNs">,
+  nowNs: number,
+) {
+  const durationNs = Math.max((shell.endedAtNs ?? nowNs) - shell.startedAtNs, 0);
+  return formatDuration(durationNs);
+}
+
+export function getShellLogLines(
+  output: string,
+  scrollOffset: number,
+  maxLines = LOG_PANEL_LINE_COUNT,
+) {
+  const lines = getShellOutputLines(output);
+  const safeOffset = Math.min(Math.max(scrollOffset, 0), Math.max(lines.length - maxLines, 0));
+  const end = Math.max(lines.length - safeOffset, 0);
+  const start = Math.max(end - maxLines, 0);
+  return lines.slice(start, end);
+}
+
+function getShellMaxScrollOffset(output: string, maxLines = LOG_PANEL_LINE_COUNT) {
+  return Math.max(getShellOutputLines(output).length - maxLines, 0);
 }
 
 function CommandItem({
@@ -90,23 +214,161 @@ function CommandItem({
   );
 }
 
+function ShellsBox({
+  shells,
+  mode,
+  selectedShellId,
+  logShell,
+  logScrollOffset,
+  nowNs,
+}: {
+  shells: ShellSession[];
+  mode: ShellUiMode;
+  selectedShellId: number | null;
+  logShell: ShellSession | null;
+  logScrollOffset: number;
+  nowNs: number;
+}) {
+  const countLabel = getShellCountLabel(shells.length);
+  const isCompact = mode === "closed" || mode === "badge";
+  const isCompactFocused = mode === "badge";
+
+  if (isCompact) {
+    return (
+      <Box marginTop={1}>
+        <Box borderStyle="round" borderColor={SHELL_ACCENT_COLOR} paddingX={1}>
+          <Text
+            color={isCompactFocused ? "black" : SHELL_ACCENT_COLOR}
+            backgroundColor={isCompactFocused ? SHELL_ACCENT_COLOR : undefined}
+          >
+            {countLabel}
+          </Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  const selectedIndex = Math.max(
+    0,
+    shells.findIndex((shell) => shell.id === selectedShellId),
+  );
+  const { start, end } = getVisibleShellWindow(shells.length, selectedIndex);
+  const windowedShells = shells.slice(start, end);
+  const runningShellCount = shells.filter(
+    (shell) => shell.status === "running" || shell.status === "stopping",
+  ).length;
+  const logLines = logShell ? getShellLogLines(logShell.output, logScrollOffset) : [];
+  const isFollowing = logScrollOffset === 0;
+
+  return (
+    <Box marginTop={1} width="100%">
+      <Box
+        width="100%"
+        flexDirection="column"
+        borderStyle="round"
+        borderColor={SHELL_ACCENT_COLOR}
+        paddingX={1}
+      >
+        <Text color={SHELL_ACCENT_COLOR} bold>
+          {logShell ? "Shell logs" : "Background shells"}
+        </Text>
+        {logShell ? (
+          <>
+            <Text>{logShell.command}</Text>
+            <Text dimColor>
+              status: {getShellStatusLabel(logShell)} · {isFollowing ? "following" : "scrolling"}
+            </Text>
+            <Box flexDirection="column" marginTop={1}>
+              {logLines.length > 0 ? (
+                logLines.map((line, index) => (
+                  <Text key={`shell-log-${logShell.id}-${index}`}>{line || " "}</Text>
+                ))
+              ) : (
+                <Text dimColor>No output yet.</Text>
+              )}
+            </Box>
+          </>
+        ) : (
+          <>
+            <Text dimColor>
+              {runningShellCount} active {getShellCountLabel(runningShellCount)}
+            </Text>
+            <Box flexDirection="column" marginTop={1}>
+              {windowedShells.map((shell) => {
+                const isSelected = shell.id === selectedShellId;
+                return (
+                  <Box key={`shell-row-${shell.id}`} flexDirection="column">
+                    <Box>
+                      <Text color={isSelected ? SHELL_ACCENT_COLOR : "gray"}>
+                        {isSelected ? "› " : "  "}
+                      </Text>
+                      <Text color={isSelected ? "#cbd6ff" : undefined}>{shell.command}</Text>
+                      <Text color={getShellStatusColor(shell.status)}>
+                        {" "}
+                        ({getShellStatusLabel(shell)})
+                      </Text>
+                      <Text dimColor> · {getShellRuntimeLabel(shell, nowNs)}</Text>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+            {shells.length > windowedShells.length && (
+              <Text dimColor>
+                Showing {start + 1}-{end} of {shells.length}
+              </Text>
+            )}
+          </>
+        )}
+        <Box marginTop={1}>
+          <Text dimColor>
+            {logShell
+              ? "↑/↓ to scroll · End to follow · x to stop · Esc to picker"
+              : "↑/↓ to select · Enter to view · x to stop · Esc to close"}
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
 export function Repl({ db, username }: ReplProps) {
   const { exit, waitUntilRenderFlush } = useApp();
   const { write } = useStdout();
   const [currentDb, setCurrentDb] = useState(db);
   const [items, setItems] = useState<HistoryItem[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [runningCommand, setRunningCommand] = useState("");
-  const [runningOutput, setRunningOutput] = useState("");
+  const [shells, setShells] = useState<ShellSession[]>([]);
+  const [foregroundShellId, setForegroundShellId] = useState<number | null>(null);
   const [version, setVersion] = useState("0.1.0");
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [hasSubmittedCommand, setHasSubmittedCommand] = useState(false);
-  const [isCancelling, setIsCancelling] = useState(false);
-  const activeExecutionRef = useRef<PipedExecution | null>(null);
-  const cancelRequestedRef = useRef(false);
+  const [shellUiMode, setShellUiMode] = useState<ShellUiMode>("closed");
+  const [selectedShellId, setSelectedShellId] = useState<number | null>(null);
+  const [logShellId, setLogShellId] = useState<number | null>(null);
+  const [logScrollOffset, setLogScrollOffset] = useState(0);
+  const [shellViewNowNs, setShellViewNowNs] = useState(Bun.nanoseconds());
+  const shellExecutionsRef = useRef(new Map<number, PipedExecution>());
+  const shellCancelRequestsRef = useRef(new Set<number>());
+  const shellsRef = useRef<ShellSession[]>([]);
 
   const system = getSystemInfo(username);
   const project = detectProject(process.cwd());
+  const foregroundShell =
+    foregroundShellId == null
+      ? null
+      : (shells.find((shell) => shell.id === foregroundShellId) ?? null);
+  const visibleShells = shells.filter((shell) => shell.isBackground);
+  const selectedShell =
+    selectedShellId == null
+      ? null
+      : (visibleShells.find((shell) => shell.id === selectedShellId) ?? null);
+  const logShell =
+    logShellId == null ? null : (visibleShells.find((shell) => shell.id === logShellId) ?? null);
+  const isPromptActive = foregroundShell == null && shellUiMode === "closed";
+
+  useEffect(() => {
+    shellsRef.current = shells;
+  }, [shells]);
 
   useEffect(() => {
     (async () => {
@@ -115,8 +377,28 @@ export function Repl({ db, username }: ReplProps) {
     })();
   }, []);
 
+  useEffect(() => {
+    if (visibleShells.length === 0) {
+      setShellUiMode("closed");
+      setSelectedShellId(null);
+      setLogShellId(null);
+      setLogScrollOffset(0);
+      return;
+    }
+
+    if (selectedShellId == null || !visibleShells.some((shell) => shell.id === selectedShellId)) {
+      setSelectedShellId(visibleShells[0]?.id ?? null);
+    }
+
+    if (logShellId != null && !visibleShells.some((shell) => shell.id === logShellId)) {
+      setShellUiMode("closed");
+      setLogShellId(null);
+      setLogScrollOffset(0);
+    }
+  }, [visibleShells, selectedShellId, logShellId]);
+
   const addInfoItem = useCallback((output: string) => {
-    setItems((prev) => [...prev, { id: nextId++, type: "info", output }]);
+    setItems((prev) => [...prev, { id: nextHistoryId++, type: "info", output }]);
   }, []);
 
   const clearScreen = useCallback(() => {
@@ -127,28 +409,205 @@ export function Repl({ db, username }: ReplProps) {
     })();
   }, [waitUntilRenderFlush, write]);
 
-  const cancelRunningCommand = useCallback(() => {
-    const execution = activeExecutionRef.current;
-    if (!execution || cancelRequestedRef.current) {
+  const updateShell = useCallback(
+    (shellId: number, update: (shell: ShellSession) => ShellSession) => {
+      setShells((prev) => prev.map((shell) => (shell.id === shellId ? update(shell) : shell)));
+    },
+    [],
+  );
+
+  const removeShell = useCallback((shellId: number) => {
+    shellExecutionsRef.current.delete(shellId);
+    shellCancelRequestsRef.current.delete(shellId);
+    setShells((prev) => prev.filter((shell) => shell.id !== shellId));
+    setForegroundShellId((current) => (current === shellId ? null : current));
+    setSelectedShellId((current) => (current === shellId ? null : current));
+    setLogShellId((current) => (current === shellId ? null : current));
+  }, []);
+
+  const requestShellStop = useCallback(
+    (shellId: number) => {
+      const execution = shellExecutionsRef.current.get(shellId);
+      if (!execution || shellCancelRequestsRef.current.has(shellId)) {
+        return;
+      }
+
+      shellCancelRequestsRef.current.add(shellId);
+      updateShell(shellId, (shell) => ({
+        ...shell,
+        status: "stopping",
+        collectMeasurement: false,
+      }));
+      cancelPipedExecution(execution);
+    },
+    [updateShell],
+  );
+
+  const backgroundForegroundShell = useCallback(() => {
+    if (foregroundShellId == null) {
       return;
     }
 
-    cancelRequestedRef.current = true;
-    setIsCancelling(true);
-    cancelPipedExecution(execution);
+    updateShell(foregroundShellId, (shell) => ({
+      ...shell,
+      isBackground: true,
+      collectMeasurement: false,
+    }));
+    setForegroundShellId(null);
+  }, [foregroundShellId, updateShell]);
+
+  const focusShellBadge = useCallback(() => {
+    if (visibleShells.length === 0) {
+      return;
+    }
+
+    setShellViewNowNs(Bun.nanoseconds());
+    setShellUiMode("badge");
+    setLogShellId(null);
+    setLogScrollOffset(0);
+    setSelectedShellId((current) => current ?? visibleShells[0]?.id ?? null);
+  }, [visibleShells]);
+
+  const openShellPicker = useCallback(() => {
+    if (visibleShells.length === 0) {
+      return;
+    }
+
+    setShellViewNowNs(Bun.nanoseconds());
+    setShellUiMode("picker");
+    setLogShellId(null);
+    setLogScrollOffset(0);
+    setSelectedShellId((current) => current ?? visibleShells[0]?.id ?? null);
+  }, [visibleShells]);
+
+  const moveShellSelection = useCallback(
+    (delta: number) => {
+      if (visibleShells.length === 0) {
+        return;
+      }
+
+      const currentIndex = Math.max(
+        0,
+        visibleShells.findIndex((shell) => shell.id === selectedShellId),
+      );
+      const nextIndex = Math.min(Math.max(currentIndex + delta, 0), visibleShells.length - 1);
+      setSelectedShellId(visibleShells[nextIndex]?.id ?? null);
+    },
+    [visibleShells, selectedShellId],
+  );
+
+  const closeShellUi = useCallback(() => {
+    setLogShellId(null);
+    setLogScrollOffset(0);
+    setShellUiMode("closed");
+  }, []);
+
+  const closeShellLogs = useCallback(() => {
+    setShellViewNowNs(Bun.nanoseconds());
+    setLogShellId(null);
+    setLogScrollOffset(0);
+    setShellUiMode("picker");
   }, []);
 
   useInput(
     (input, key) => {
-      if (!isRunning) {
+      if (foregroundShell) {
+        if (key.ctrl && input === "b") {
+          backgroundForegroundShell();
+          return;
+        }
+
+        if (key.escape || (key.ctrl && input === "c")) {
+          requestShellStop(foregroundShell.id);
+        }
         return;
       }
 
-      if (key.escape || (key.ctrl && input === "c")) {
-        cancelRunningCommand();
+      if (shellUiMode === "logs" && logShell) {
+        if (key.escape) {
+          closeShellLogs();
+          return;
+        }
+
+        if (key.upArrow) {
+          setLogScrollOffset((current) =>
+            Math.min(current + 1, getShellMaxScrollOffset(logShell.output)),
+          );
+          return;
+        }
+
+        if (key.downArrow) {
+          setLogScrollOffset((current) => Math.max(current - 1, 0));
+          return;
+        }
+
+        if (key.end) {
+          setLogScrollOffset(0);
+          return;
+        }
+
+        if (input.toLowerCase() === "x") {
+          if (logShell.status === "running" || logShell.status === "stopping") {
+            requestShellStop(logShell.id);
+          } else {
+            removeShell(logShell.id);
+          }
+        }
+        return;
+      }
+
+      if (shellUiMode === "badge") {
+        if (key.escape || key.upArrow) {
+          closeShellUi();
+          return;
+        }
+
+        if (key.return) {
+          openShellPicker();
+        }
+        return;
+      }
+
+      if (shellUiMode !== "picker" || visibleShells.length === 0) {
+        return;
+      }
+
+      if (key.escape) {
+        closeShellUi();
+        return;
+      }
+
+      if (key.upArrow) {
+        moveShellSelection(-1);
+        return;
+      }
+
+      if (key.downArrow) {
+        moveShellSelection(1);
+        return;
+      }
+
+      if (key.return) {
+        if (selectedShell) {
+          setShellViewNowNs(Bun.nanoseconds());
+          setLogShellId(selectedShell.id);
+          setLogScrollOffset(0);
+          setShellUiMode("logs");
+        }
+        return;
+      }
+
+      if (input.toLowerCase() === "x" && selectedShell) {
+        if (selectedShell.status === "running" || selectedShell.status === "stopping") {
+          requestShellStop(selectedShell.id);
+        } else {
+          removeShell(selectedShell.id);
+        }
       }
     },
-    { isActive: isRunning },
+    {
+      isActive: foregroundShell != null || shellUiMode !== "closed",
+    },
   );
 
   const handleSlashCommand = useCallback(
@@ -162,7 +621,8 @@ export function Repl({ db, username }: ReplProps) {
               "",
               "  REPL Commands:",
               ...formatReplSlashCommandHelpLines(),
-              "  Running commands: press Esc to cancel the current command and keep the REPL open",
+              "  Running commands: Ctrl+B backgrounds the current shell, Esc cancels it",
+              "  Background shells: Down focuses the shells chip, Enter opens the picker",
               "  Slash menu: type / to browse, Up/Down to select, Enter to run,",
               "              Tab to prefill commands that take input",
               "  Editing: arrows/home/end, Ctrl+A/E/B/F/D/W/U/K/L, Ctrl+P/N history,",
@@ -289,82 +749,120 @@ export function Repl({ db, username }: ReplProps) {
 
   const handleSubmit = useCallback(
     async (input: string) => {
-      if (!input.trim()) return;
-      setHasSubmittedCommand(true);
+      if (!input.trim()) {
+        return;
+      }
 
-      // Add to input history (most recent first)
-      setInputHistory((prev) => [input, ...prev.filter((h) => h !== input)]);
+      setHasSubmittedCommand(true);
+      setInputHistory((prev) => [input, ...prev.filter((entry) => entry !== input)]);
 
       if (input.trim().startsWith("/")) {
         handleSlashCommand(input.trim());
         return;
       }
 
-      // Execute and measure the command
-      setIsRunning(true);
-      setIsCancelling(false);
-      setRunningCommand(input);
-      setRunningOutput("");
+      const shellId = nextShellId++;
+      const execution = spawnPiped(input);
+      const decoder = new TextDecoder();
+      let capturedOutput = "";
+
+      setForegroundShellId(shellId);
+      setShells((prev) => [
+        ...prev,
+        {
+          id: shellId,
+          command: input,
+          output: "",
+          status: "running",
+          startedAtNs: execution.startNs,
+          isBackground: false,
+          collectMeasurement: true,
+        },
+      ]);
+      shellExecutionsRef.current.set(shellId, execution);
+
+      const appendOutputChunk = (chunk: string) => {
+        capturedOutput += chunk;
+        updateShell(shellId, (shell) => ({
+          ...shell,
+          output: appendShellOutput(shell.output, chunk),
+        }));
+      };
 
       try {
-        const execution = spawnPiped(input);
-        activeExecutionRef.current = execution;
-        cancelRequestedRef.current = false;
-        const decoder = new TextDecoder();
-        let capturedOutput = "";
-
-        // Stream stdout
         const stdoutReader = execution.proc.stdout.getReader();
         const stdoutTask = (async () => {
           try {
             while (true) {
               const { done, value } = await stdoutReader.read();
-              if (done) break;
-              const chunk = decoder.decode(value, { stream: true });
-              capturedOutput += chunk;
-              setRunningOutput((prev) => prev + chunk);
+              if (done) {
+                break;
+              }
+              appendOutputChunk(decoder.decode(value, { stream: true }));
             }
           } catch {
-            // Process ended
+            // Process ended.
           }
         })();
 
-        // Stream stderr
         const stderrReader = execution.proc.stderr.getReader();
         const stderrTask = (async () => {
           try {
             while (true) {
               const { done, value } = await stderrReader.read();
-              if (done) break;
-              const chunk = decoder.decode(value, { stream: true });
-              capturedOutput += chunk;
-              setRunningOutput((prev) => prev + chunk);
+              if (done) {
+                break;
+              }
+              appendOutputChunk(decoder.decode(value, { stream: true }));
             }
           } catch {
-            // Process ended
+            // Process ended.
           }
         })();
 
         const exitCode = await execution.proc.exited;
         await Promise.all([stdoutTask, stderrTask]);
-        const wasCancelled = cancelRequestedRef.current;
+
+        const endedAtNs = Bun.nanoseconds();
+        const shell = shellsRef.current.find((entry) => entry.id === shellId);
+        const wasCancelled = shellCancelRequestsRef.current.has(shellId);
+        const wasBackgrounded = shell?.isBackground ?? false;
+
+        shellExecutionsRef.current.delete(shellId);
+        shellCancelRequestsRef.current.delete(shellId);
 
         if (wasCancelled) {
-          setItems((prev) => [
-            ...prev,
-            {
-              id: nextId++,
-              type: "command",
-              command: input,
-              output: formatCancelledCommandOutput(capturedOutput),
-            },
-          ]);
+          if (wasBackgrounded) {
+            removeShell(shellId);
+          } else {
+            removeShell(shellId);
+            setItems((prev) => [
+              ...prev,
+              {
+                id: nextHistoryId++,
+                type: "command",
+                command: input,
+                output: formatCancelledCommandOutput(capturedOutput),
+              },
+            ]);
+          }
           return;
         }
 
+        if (wasBackgrounded) {
+          updateShell(shellId, (current) => ({
+            ...current,
+            status: exitCode === 0 ? "exited" : "failed",
+            endedAtNs,
+            exitCode,
+            collectMeasurement: false,
+          }));
+          return;
+        }
+
+        removeShell(shellId);
         const exec = collectResult(execution, exitCode);
 
-        // Save to DB
         insertMeasurement(currentDb, {
           command: input,
           project,
@@ -374,33 +872,26 @@ export function Repl({ db, username }: ReplProps) {
           benchGroup: null,
         });
 
-        // Keep each finished command as a single history block so its output has context.
         setItems((prev) => [
           ...prev,
           {
-            id: nextId++,
+            id: nextHistoryId++,
             type: "command",
             command: input,
             exec,
             output: capturedOutput || undefined,
           },
         ]);
-      } catch (e) {
-        addInfoItem(`  Error: ${String(e)}`);
-      } finally {
-        activeExecutionRef.current = null;
-        cancelRequestedRef.current = false;
-        setIsRunning(false);
-        setIsCancelling(false);
-        setRunningCommand("");
-        setRunningOutput("");
+      } catch (error) {
+        removeShell(shellId);
+        addInfoItem(`  Error: ${String(error)}`);
       }
     },
-    [currentDb, system, project, handleSlashCommand, addInfoItem],
+    [addInfoItem, currentDb, handleSlashCommand, project, removeShell, system, updateShell],
   );
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width="100%">
       {shouldShowReplIntro(hasSubmittedCommand) && (
         <Box flexDirection="column" paddingBottom={1}>
           <Box paddingLeft={2} gap={1}>
@@ -436,27 +927,42 @@ export function Repl({ db, username }: ReplProps) {
         )}
       </Static>
 
-      {isRunning && (
+      {foregroundShell && (
         <Box flexDirection="column" marginBottom={1}>
-          <CommandItem command={runningCommand} output={runningOutput || undefined} />
+          <CommandItem
+            command={foregroundShell.command}
+            output={foregroundShell.output || undefined}
+          />
           <Box paddingLeft={2}>
-            <Text dimColor>{getRunningCommandStatus(isCancelling)}</Text>
+            <Text dimColor>{getRunningCommandStatus(foregroundShell.status === "stopping")}</Text>
           </Box>
         </Box>
       )}
 
-      <Box>
-        {!isRunning && (
+      {shellUiMode !== "picker" && shellUiMode !== "logs" && (
+        <Box>
           <TextInput
             prompt={getReplPrompt(hasSubmittedCommand)}
             onSubmit={handleSubmit}
             onClear={clearScreen}
-            active={!isRunning}
+            onNavigateDownBoundary={focusShellBadge}
+            active={isPromptActive}
             history={inputHistory}
             slashCommands={REPL_SLASH_COMMANDS}
           />
-        )}
-      </Box>
+        </Box>
+      )}
+
+      {visibleShells.length > 0 && (
+        <ShellsBox
+          shells={visibleShells}
+          mode={shellUiMode}
+          selectedShellId={selectedShellId}
+          logShell={logShell}
+          logScrollOffset={logScrollOffset}
+          nowNs={shellViewNowNs}
+        />
+      )}
     </Box>
   );
 }
