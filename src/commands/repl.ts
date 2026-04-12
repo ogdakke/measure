@@ -15,6 +15,10 @@ import { bold, dim, cyan, green, red, yellow } from "../format/colors.ts";
 import { formatDuration, formatBytes, formatMicroseconds } from "../format/units.ts";
 import { renderTable, type Column } from "../format/table.ts";
 import type { ExecutionResult } from "../types.ts";
+import {
+  formatReplSlashCommandHelpLines,
+  parseReplSlashCommand,
+} from "../repl/slash-commands.ts";
 
 export async function startRepl(
   db: Database,
@@ -34,7 +38,7 @@ export async function startRepl(
   console.log(
     `  ${bold("measure")} v${version} ${dim("|")} project: ${cyan(project ?? "unknown")} ${dim("|")} host: ${cyan(system.hostname)} ${dim("|")} user: ${cyan(username)}`,
   );
-  console.log(`  Type a command to measure, or ${dim(".help")} for options.`);
+  console.log(`  Type a command to measure, or ${dim("/help")} for options.`);
   console.log();
 
   const rl = readline.createInterface({
@@ -52,8 +56,8 @@ export async function startRepl(
       return;
     }
 
-    if (input.startsWith(".")) {
-      handleDotCommand(db, username, input);
+    if (input.startsWith("/")) {
+      handleSlashCommand(db, username, input);
       rl.prompt();
       return;
     }
@@ -95,31 +99,28 @@ export async function startRepl(
   });
 }
 
-function handleDotCommand(
+function handleSlashCommand(
   db: Database,
   username: string,
   input: string,
 ): void {
-  const [cmd, ...args] = input.split(/\s+/);
+  const { command, args } = parseReplSlashCommand(input);
 
-  switch (cmd) {
-    case ".help":
+  switch (command?.key) {
+    case "help":
       console.log();
       console.log(`  ${bold("REPL Commands:")}`);
-      console.log(`  ${dim(".history [N]")}     Show last N measurements (default 10)`);
-      console.log(`  ${dim(".stats")}           Show aggregated stats`);
-      console.log(`  ${dim(".export [csv|json] [file]")} Export to file (defaults to ./measure-export.csv)`);
-      console.log(`  ${dim(".import <files...>")} Import .db/.csv/.json files`);
-      console.log(`  ${dim(".db [list|create|use] [name]")} Manage databases`);
-      console.log(`  ${dim(".system")}          Show system info`);
-      console.log(`  ${dim(".clear")}           Clear screen`);
-      console.log(`  ${dim(".exit / .quit")}    Exit`);
+      for (const line of formatReplSlashCommandHelpLines()) {
+        console.log(dim(line));
+      }
+      console.log(`  ${dim("Slash menu:")} type / to browse, Up/Down to select, Enter to run,`);
+      console.log(`              Tab to prefill commands that take input`);
       console.log(`  ${dim("Editing:")} arrows/home/end, Ctrl+A/E/B/F/D/W/U/K, Ctrl+P/N history`);
       console.log(`           Alt/Option+B/F/D, Alt/Option+Backspace/Delete, Ctrl/Alt+Left/Right`);
       console.log();
       break;
 
-    case ".history": {
+    case "history": {
       const limit = parseInt(args[0] ?? "10", 10) || 10;
       const result = historyCommand(db, limit);
       if (result.isErr()) {
@@ -155,7 +156,7 @@ function handleDotCommand(
       break;
     }
 
-    case ".stats": {
+    case "stats": {
       const result = statsCommand(db);
       if (result.isErr()) {
         console.error(red(`  Error: ${result.error.message}`));
@@ -198,7 +199,7 @@ function handleDotCommand(
       break;
     }
 
-    case ".export": {
+    case "export": {
       const format = (args[0] === "json" ? "json" : "csv") as "csv" | "json";
       const filename = args[1] ?? defaultExportPath(format);
       const result = exportCommand(db, format, undefined, undefined, undefined, filename);
@@ -212,9 +213,9 @@ function handleDotCommand(
       break;
     }
 
-    case ".import": {
+    case "import": {
       if (args.length === 0) {
-        console.log(dim("  Usage: .import <file1.db|.csv|.json> [file2...]"));
+        console.log(dim("  Usage: /import <file1.db|.csv|.json> [file2...]"));
         break;
       }
       const result = importCommand(db, args);
@@ -236,7 +237,7 @@ function handleDotCommand(
       break;
     }
 
-    case ".db": {
+    case "db": {
       const action = args[0] ?? "list";
       if (action === "list") {
         const dbs = dbListCommand();
@@ -249,7 +250,7 @@ function handleDotCommand(
         console.log();
       } else if (action === "create") {
         if (!args[1]) {
-          console.log(dim("  Usage: .db create <name>"));
+          console.log(dim("  Usage: /db create <name>"));
         } else {
           const result = dbCreateCommand(args[1]);
           if (result.isErr()) {
@@ -260,7 +261,7 @@ function handleDotCommand(
         }
       } else if (action === "use") {
         if (!args[1]) {
-          console.log(dim("  Usage: .db use <name>"));
+          console.log(dim("  Usage: /db use <name>"));
         } else {
           const result = dbUseCommand(args[1]);
           if (result.isErr()) {
@@ -275,7 +276,7 @@ function handleDotCommand(
       break;
     }
 
-    case ".system": {
+    case "system": {
       const sys = systemCommand(username);
       console.log();
       console.log(`  ${bold("System Info")}`);
@@ -291,17 +292,16 @@ function handleDotCommand(
       break;
     }
 
-    case ".clear":
+    case "clear":
       console.clear();
       break;
 
-    case ".exit":
-    case ".quit":
+    case "exit":
       process.exit(0);
       break;
 
     default:
-      console.log(dim(`  Unknown command: ${cmd}. Type .help for options.`));
+      console.log(dim(`  Unknown command: ${input.trim()}. Type /help for options.`));
       break;
   }
 }

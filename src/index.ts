@@ -13,6 +13,7 @@ import { getDatabase } from "./db/connection.ts";
 import { bold, dim, red, green, yellow, cyan } from "./format/colors.ts";
 import { formatDuration, formatBytes, formatMicroseconds } from "./format/units.ts";
 import { renderTable, type Column } from "./format/table.ts";
+import { formatReplSlashCommandHelpLines } from "./repl/slash-commands.ts";
 import { ensureUsername } from "./system/username.ts";
 
 // Extract --db flag before parsing commands
@@ -331,14 +332,9 @@ function printHelp(): void {
     --db <name>                                       Use a specific database for this command
 
   ${bold("REPL Commands:")}
-    .history [N]                                      Show last N measurements
-    .stats                                            Show aggregated stats
-    .export [csv|json] [file]                         Export to file
-    .import <files...>                                Import data files
-    .db [list|create|use] [name]                      Manage databases
-    .system                                           Show system info
-    .clear                                            Clear screen
-    .exit / .quit                                     Exit
+${formatReplSlashCommandHelpLines().join("\n")}
+    Slash menu: type / to browse, Up/Down to select, Enter to run,
+                Tab to prefill commands that take input
 
   ${dim("Data stored at ~/.measure/ (use 'measure db list' to see databases)")}
 `);

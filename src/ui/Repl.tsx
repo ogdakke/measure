@@ -20,6 +20,11 @@ import { DbListView } from "./DbListView.tsx";
 import { ImportView } from "./ImportView.tsx";
 import { join } from "node:path";
 import type { ExecutionResult } from "../types.ts";
+import {
+  formatReplSlashCommandHelpLines,
+  parseReplSlashCommand,
+  REPL_SLASH_COMMANDS,
+} from "../repl/slash-commands.ts";
 
 interface ReplProps {
   db: Database;
@@ -61,24 +66,19 @@ export function Repl({ db, username }: ReplProps) {
     setItems((prev) => [...prev, { id: nextId++, type: "info", output }]);
   }, []);
 
-  const handleDotCommand = useCallback(
+  const handleSlashCommand = useCallback(
     (input: string) => {
-      const [cmd, ...args] = input.split(/\s+/);
+      const { command, args } = parseReplSlashCommand(input);
 
-      switch (cmd) {
-        case ".help":
+      switch (command?.key) {
+        case "help":
           addInfoItem(
             [
               "",
               "  REPL Commands:",
-              "  .history [N]     Show last N measurements (default 10)",
-              "  .stats           Show aggregated stats",
-              "  .export [csv|json] [file]  Export to file",
-              "  .import <files...>  Import .db/.csv/.json files",
-              "  .db [list|create|use] [name]  Manage databases",
-              "  .system          Show system info",
-              "  .clear           Clear screen",
-              "  .exit / .quit    Exit",
+              ...formatReplSlashCommandHelpLines(),
+              "  Slash menu: type / to browse, Up/Down to select, Enter to run,",
+              "              Tab to prefill commands that take input",
               "  Editing: arrows/home/end, Ctrl+A/E/B/F/D/W/U/K, Ctrl+P/N history,",
               "           Alt/Option+B/F/D, Alt/Option+Backspace/Delete, Ctrl/Alt+Left/Right",
               "",
@@ -86,7 +86,7 @@ export function Repl({ db, username }: ReplProps) {
           );
           break;
 
-        case ".history": {
+        case "history": {
           const limit = parseInt(args[0] ?? "10", 10) || 10;
           const result = historyCommand(db, limit);
           if (result.isErr()) {
@@ -98,7 +98,7 @@ export function Repl({ db, username }: ReplProps) {
           break;
         }
 
-        case ".stats": {
+        case "stats": {
           const result = statsCommand(db);
           if (result.isErr()) {
             addInfoItem(`  Error: ${result.error.message}`);
@@ -109,7 +109,7 @@ export function Repl({ db, username }: ReplProps) {
           break;
         }
 
-        case ".export": {
+        case "export": {
           const format = (args[0] === "json" ? "json" : "csv") as "csv" | "json";
           const date = new Date().toISOString().slice(0, 10);
           const filename = args[1] ?? join(process.cwd(), `measure-export-${date}.${format}`);
@@ -122,9 +122,9 @@ export function Repl({ db, username }: ReplProps) {
           break;
         }
 
-        case ".import": {
+        case "import": {
           if (args.length === 0) {
-            addInfoItem("  Usage: .import <file1.db|.csv|.json> [file2...]");
+            addInfoItem("  Usage: /import <file1.db|.csv|.json> [file2...]");
             break;
           }
           const result = importCommand(db, args);
@@ -137,14 +137,14 @@ export function Repl({ db, username }: ReplProps) {
           break;
         }
 
-        case ".db": {
+        case "db": {
           const action = args[0] ?? "list";
           if (action === "list") {
             const output = renderToString(<DbListView databases={dbListCommand()} />);
             addInfoItem(output);
           } else if (action === "create") {
             if (!args[1]) {
-              addInfoItem("  Usage: .db create <name>");
+              addInfoItem("  Usage: /db create <name>");
             } else {
               const result = dbCreateCommand(args[1]);
               if (result.isErr()) {
@@ -155,7 +155,7 @@ export function Repl({ db, username }: ReplProps) {
             }
           } else if (action === "use") {
             if (!args[1]) {
-              addInfoItem("  Usage: .db use <name>");
+              addInfoItem("  Usage: /db use <name>");
             } else {
               const result = dbUseCommand(args[1]);
               if (result.isErr()) {
@@ -170,25 +170,24 @@ export function Repl({ db, username }: ReplProps) {
           break;
         }
 
-        case ".system": {
+        case "system": {
           const info = systemCommand(username);
           const output = renderToString(<SystemView info={info} />);
           addInfoItem(output);
           break;
         }
 
-        case ".clear":
+        case "clear":
           process.stdout.write("\x1B[2J\x1B[3J\x1B[H");
           setItems([]);
           break;
 
-        case ".exit":
-        case ".quit":
+        case "exit":
           exit();
           break;
 
         default:
-          addInfoItem(`  Unknown command: ${cmd}. Type .help for options.`);
+          addInfoItem(`  Unknown command: ${input.trim()}. Type /help for options.`);
           break;
       }
     },
@@ -202,8 +201,8 @@ export function Repl({ db, username }: ReplProps) {
       // Add to input history (most recent first)
       setInputHistory((prev) => [input, ...prev.filter((h) => h !== input)]);
 
-      if (input.trim().startsWith(".")) {
-        handleDotCommand(input.trim());
+      if (input.trim().startsWith("/")) {
+        handleSlashCommand(input.trim());
         return;
       }
 
@@ -286,7 +285,7 @@ export function Repl({ db, username }: ReplProps) {
         setRunningOutput("");
       }
     },
-    [db, system, project, handleDotCommand, addInfoItem],
+    [db, system, project, handleSlashCommand, addInfoItem],
   );
 
   return (
@@ -306,7 +305,7 @@ export function Repl({ db, username }: ReplProps) {
           <Text color="cyan">{username}</Text>
         </Box>
         <Box paddingLeft={2}>
-          <Text dimColor>Type a command to measure, or .help for options.</Text>
+          <Text dimColor>Type a command to measure, or start with / for slash commands.</Text>
         </Box>
       </Box>
 
@@ -328,7 +327,13 @@ export function Repl({ db, username }: ReplProps) {
         {isRunning ? (
           <Text dimColor>  Running: {runningCommand}...</Text>
         ) : (
-          <TextInput prompt="measure > " onSubmit={handleSubmit} active={!isRunning} history={inputHistory} />
+          <TextInput
+            prompt="measure > "
+            onSubmit={handleSubmit}
+            active={!isRunning}
+            history={inputHistory}
+            slashCommands={REPL_SLASH_COMMANDS}
+          />
         )}
       </Box>
     </>

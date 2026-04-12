@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import { REPL_SLASH_COMMANDS } from "../repl/slash-commands.ts";
 
 export function HelpView() {
   return (
@@ -25,6 +26,17 @@ export function HelpView() {
       <Text>  --help, -h                                        Show this help</Text>
       <Text>  --version, -v                                     Show version</Text>
       <Text>  --db {"<name>"}                                       Use a specific database</Text>
+      <Text />
+      <Text bold>REPL Commands:</Text>
+      {REPL_SLASH_COMMANDS.map((command) => (
+        <Text key={command.command}>
+          {"  "}
+          {command.helpLabel.padEnd(30)}
+          {command.description}
+        </Text>
+      ))}
+      <Text>  Slash menu: type / to browse, Up/Down to select, Enter to run</Text>
+      <Text>              Tab prefills commands that take input</Text>
       <Text />
       <Text dimColor>Data stored at ~/.measure/ (use 'measure db list' to see databases)</Text>
     </Box>
