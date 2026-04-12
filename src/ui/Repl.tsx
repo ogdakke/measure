@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Box, Text, Static, useApp, useStdout, renderToString } from "ink";
+import { Box, Text, Static, useApp, renderToString } from "ink";
 import type { Database } from "bun:sqlite";
 import { spawnPiped, collectResult } from "../runner/execute-piped.ts";
 import { insertMeasurement } from "../db/queries.ts";
@@ -38,10 +38,10 @@ let nextId = 0;
 
 export function Repl({ db, username }: ReplProps) {
   const { exit } = useApp();
-  const { write } = useStdout();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [runningCommand, setRunningCommand] = useState("");
+  const [runningOutput, setRunningOutput] = useState("");
   const [version, setVersion] = useState("0.1.0");
   const [inputHistory, setInputHistory] = useState<string[]>([]);
 
@@ -79,6 +79,8 @@ export function Repl({ db, username }: ReplProps) {
               "  .system          Show system info",
               "  .clear           Clear screen",
               "  .exit / .quit    Exit",
+              "  Editing: arrows/home/end, Ctrl+A/E/B/F/D/W/U/K, Ctrl+P/N history,",
+              "           Alt/Option+B/F/D, Alt/Option+Backspace/Delete, Ctrl/Alt+Left/Right",
               "",
             ].join("\n"),
           );
@@ -208,19 +210,23 @@ export function Repl({ db, username }: ReplProps) {
       // Execute and measure the command
       setIsRunning(true);
       setRunningCommand(input);
+      setRunningOutput("");
 
       try {
         const execution = spawnPiped(input);
         const decoder = new TextDecoder();
+        let capturedOutput = "";
 
         // Stream stdout
         const stdoutReader = execution.proc.stdout.getReader();
-        (async () => {
+        const stdoutTask = (async () => {
           try {
             while (true) {
               const { done, value } = await stdoutReader.read();
               if (done) break;
-              write(decoder.decode(value, { stream: true }));
+              const chunk = decoder.decode(value, { stream: true });
+              capturedOutput += chunk;
+              setRunningOutput((prev) => prev + chunk);
             }
           } catch {
             // Process ended
@@ -229,12 +235,14 @@ export function Repl({ db, username }: ReplProps) {
 
         // Stream stderr
         const stderrReader = execution.proc.stderr.getReader();
-        (async () => {
+        const stderrTask = (async () => {
           try {
             while (true) {
               const { done, value } = await stderrReader.read();
               if (done) break;
-              write(decoder.decode(value, { stream: true }));
+              const chunk = decoder.decode(value, { stream: true });
+              capturedOutput += chunk;
+              setRunningOutput((prev) => prev + chunk);
             }
           } catch {
             // Process ended
@@ -242,6 +250,7 @@ export function Repl({ db, username }: ReplProps) {
         })();
 
         const exitCode = await execution.proc.exited;
+        await Promise.all([stdoutTask, stderrTask]);
         const exec = collectResult(execution, exitCode);
 
         // Save to DB
@@ -258,6 +267,9 @@ export function Repl({ db, username }: ReplProps) {
         const summaryStr = renderToString(<Summary exec={exec} />);
         setItems((prev) => [
           ...prev,
+          ...(capturedOutput
+            ? [{ id: nextId++, type: "info" as const, output: capturedOutput }]
+            : []),
           {
             id: nextId++,
             type: "command",
@@ -271,9 +283,10 @@ export function Repl({ db, username }: ReplProps) {
       } finally {
         setIsRunning(false);
         setRunningCommand("");
+        setRunningOutput("");
       }
     },
-    [db, system, project, write, handleDotCommand, addInfoItem],
+    [db, system, project, handleDotCommand, addInfoItem],
   );
 
   return (
@@ -304,6 +317,12 @@ export function Repl({ db, username }: ReplProps) {
           </Box>
         )}
       </Static>
+
+      {isRunning && runningOutput && (
+        <Box flexDirection="column">
+          <Text>{runningOutput}</Text>
+        </Box>
+      )}
 
       <Box>
         {isRunning ? (

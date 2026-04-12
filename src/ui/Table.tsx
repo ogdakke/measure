@@ -14,15 +14,15 @@ interface TableProps {
 
 export function Table({ columns, rows }: TableProps) {
   return (
-    <Box flexDirection="column" paddingLeft={2}>
-      <Box>
+    <Box flexDirection="column" paddingLeft={2} width="100%">
+      <Box width="100%">
         {columns.map((col) => (
           <Box key={col.key} width={col.width} justifyContent={col.align === "right" ? "flex-end" : "flex-start"}>
             <Text bold>{col.label}  </Text>
           </Box>
         ))}
       </Box>
-      <Box>
+      <Box width="100%">
         {columns.map((col) => (
           <Box key={col.key} width={col.width}>
             <Text dimColor>{"─".repeat(col.label.length + 2)}</Text>
@@ -30,7 +30,7 @@ export function Table({ columns, rows }: TableProps) {
         ))}
       </Box>
       {rows.map((row, i) => (
-        <Box key={i}>
+        <Box key={i} width="100%">
           {columns.map((col) => (
             <Box key={col.key} width={col.width} justifyContent={col.align === "right" ? "flex-end" : "flex-start"}>
               <Text>{row[col.key] ?? ""}  </Text>

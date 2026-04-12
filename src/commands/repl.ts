@@ -114,6 +114,8 @@ function handleDotCommand(
       console.log(`  ${dim(".system")}          Show system info`);
       console.log(`  ${dim(".clear")}           Clear screen`);
       console.log(`  ${dim(".exit / .quit")}    Exit`);
+      console.log(`  ${dim("Editing:")} arrows/home/end, Ctrl+A/E/B/F/D/W/U/K, Ctrl+P/N history`);
+      console.log(`           Alt/Option+B/F/D, Alt/Option+Backspace/Delete, Ctrl/Alt+Left/Right`);
       console.log();
       break;
 
