@@ -1,15 +1,69 @@
 # @ogdakke/measure
 
-To install dependencies:
+Measure and compare command execution times across machines.
+
+```bash
+bunx @ogdakke/measure --help
+```
+
+## Requirements
+
+- [Bun](https://bun.com) `>=1.3.12`
+
+## Install
+
+```bash
+bun add -g @ogdakke/measure
+```
+
+Or run it without installing globally:
+
+```bash
+bunx @ogdakke/measure --help
+```
+
+## Usage
+
+Measure a one-off command:
+
+```bash
+measure run bun test
+```
+
+Benchmark a command across multiple runs:
+
+```bash
+measure bench -n 20 bun test
+```
+
+Browse recent measurements:
+
+```bash
+measure history --limit 10
+```
+
+Open the interactive REPL:
+
+```bash
+measure
+```
+
+## Development
+
+Install dependencies:
 
 ```bash
 bun install
 ```
 
-To run:
+Run locally:
 
 ```bash
-bun run index.ts
+bun run src/index.ts
 ```
 
-This project was created using `bun init` in bun v1.3.12. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+Run tests:
+
+```bash
+bun test
+```
