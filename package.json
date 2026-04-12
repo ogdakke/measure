@@ -3,6 +3,18 @@
   "version": "0.1.0",
   "description": "Measure and compare command execution times across machines",
   "type": "module",
+  "author": {
+    "email": "dw@danielwargh.com",
+    "name": "Daniel Wargh",
+    "url": "https://danielwargh.com"
+  },
+  "homepage": "https://github.com/ogdakke/measure",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ogdakke/measure"
+  },
+  "readme": "README.md",
   "bin": {
     "measure": "./src/index.ts"
   },
