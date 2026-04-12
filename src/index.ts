@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { APP_VERSION } from "./app-meta.ts";
 import { parseArgs, extractDbFlag } from "./cli.ts";
 import { benchCommand } from "./commands/bench.ts";
 import { dbListCommand, dbCreateCommand, dbUseCommand } from "./commands/db.ts";
@@ -33,8 +34,7 @@ if (cmd.command === "help") {
 }
 
 if (cmd.command === "version") {
-  const pkg = await Bun.file(new URL("../package.json", import.meta.url).pathname).json();
-  console.log(`measure v${pkg.version}`);
+  console.log(`measure v${APP_VERSION}`);
   process.exit(0);
 }
 

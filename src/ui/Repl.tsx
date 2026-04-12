@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { Box, renderToString, Static, Text, useApp, useInput, useStdout } from "ink";
 import { join } from "node:path";
+import { APP_VERSION } from "../app-meta.ts";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { dbCreateCommand, dbListCommand, dbUseCommand } from "../commands/db.ts";
 import { exportCommand } from "../commands/export.ts";
@@ -340,7 +341,6 @@ export function Repl({ db, username }: ReplProps) {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [shells, setShells] = useState<ShellSession[]>([]);
   const [foregroundShellId, setForegroundShellId] = useState<number | null>(null);
-  const [version, setVersion] = useState("0.1.0");
   const [inputHistory, setInputHistory] = useState<string[]>([]);
   const [hasSubmittedCommand, setHasSubmittedCommand] = useState(false);
   const [shellUiMode, setShellUiMode] = useState<ShellUiMode>("closed");
@@ -370,13 +370,6 @@ export function Repl({ db, username }: ReplProps) {
   useEffect(() => {
     shellsRef.current = shells;
   }, [shells]);
-
-  useEffect(() => {
-    void (async () => {
-      const pkg = await Bun.file(new URL("../../package.json", import.meta.url).pathname).json();
-      setVersion(pkg.version ?? "0.1.0");
-    })();
-  }, []);
 
   useEffect(() => {
     if (visibleShells.length === 0) {
@@ -897,7 +890,7 @@ export function Repl({ db, username }: ReplProps) {
         <Box flexDirection="column" paddingBottom={1}>
           <Box paddingLeft={2} gap={1}>
             <Text bold>measure</Text>
-            <Text>v{version}</Text>
+            <Text>v{APP_VERSION}</Text>
             <Text dimColor>|</Text>
             <Text>project: </Text>
             <Text color="cyan">{project ?? "unknown"}</Text>

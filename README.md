@@ -22,6 +22,8 @@ Or run it without installing globally:
 bunx @ogdakke/measure --help
 ```
 
+`bunx` is the supported runner. `npx` may work on machines that already have Bun installed, but this package is built for the Bun runtime.
+
 ## Usage
 
 Measure a one-off command:
