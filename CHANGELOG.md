@@ -1,5 +1,11 @@
 # @ogdakke/measure
 
+## 0.1.0
+
+### Minor Changes
+
+- add REPL history search, inline suggestions, and loading states
+
 ## 0.0.3
 
 ### Patch Changes
