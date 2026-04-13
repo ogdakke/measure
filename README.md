@@ -54,6 +54,8 @@ The REPL is best for one-off commands. If you accidentally start an interactive 
 `cat`, `git add -p`, or `bun run dev`, press `Esc` to cancel the child process and return to the REPL.
 If you want to keep a long-running command alive, press `Ctrl+B` to move it into the background shells panel,
 then use the shells UI below the prompt to inspect logs or stop it later.
+The prompt also surfaces inline history suggestions from your current session, `measure` history, and
+shell history. Press `Right` or `Tab` to accept a suggestion, and use `Ctrl+R` to open fuzzy history search.
 
 ## Development
 

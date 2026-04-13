@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { Box, renderToString, Static, Text, useApp, useInput, useStdout } from "ink";
 import { join } from "node:path";
 import { APP_VERSION } from "../app-meta.ts";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { dbCreateCommand, dbListCommand, dbUseCommand } from "../commands/db.ts";
 import { exportCommand } from "../commands/export.ts";
 import { historyCommand } from "../commands/history.ts";
@@ -18,6 +18,10 @@ import {
   REPL_SLASH_COMMANDS,
 } from "../repl/slash-commands.ts";
 import {
+  loadShellHistorySuggestions,
+  mergeHistorySuggestions,
+} from "../repl/history-suggestions.ts";
+import {
   cancelPipedExecution,
   collectResult,
   spawnPiped,
@@ -29,6 +33,7 @@ import type { ExecutionResult } from "../types.ts";
 import { DbListView } from "./DbListView.tsx";
 import { HistoryView } from "./HistoryView.tsx";
 import { ImportView } from "./ImportView.tsx";
+import { LoadingIndicator } from "./LoadingIndicator.tsx";
 import { StatsView } from "./StatsView.tsx";
 import { Summary } from "./Summary.tsx";
 import { SystemView } from "./SystemView.tsx";
@@ -296,9 +301,17 @@ function ShellsBox({
         {logShell ? (
           <>
             <Text>{logShell.command}</Text>
-            <Text dimColor>
-              status: {getShellStatusLabel(logShell)} · {isFollowing ? "following" : "scrolling"}
-            </Text>
+            <Box>
+              {(logShell.status === "running" || logShell.status === "stopping") && (
+                <>
+                  <LoadingIndicator label="" color={SHELL_ACCENT_COLOR} />
+                  <Text> </Text>
+                </>
+              )}
+              <Text dimColor>
+                status: {getShellStatusLabel(logShell)} · {isFollowing ? "following" : "scrolling"}
+              </Text>
+            </Box>
             <Box flexDirection="column" marginTop={1}>
               {logLines.length > 0 ? (
                 logLines.map((line, index) => (
@@ -311,9 +324,17 @@ function ShellsBox({
           </>
         ) : (
           <>
-            <Text dimColor>
-              {runningShellCount} active {getShellCountLabel(runningShellCount)}
-            </Text>
+            <Box>
+              {runningShellCount > 0 && (
+                <>
+                  <LoadingIndicator label="" color={SHELL_ACCENT_COLOR} />
+                  <Text> </Text>
+                </>
+              )}
+              <Text dimColor>
+                {runningShellCount} active {getShellCountLabel(runningShellCount)}
+              </Text>
+            </Box>
             <Box flexDirection="column" marginTop={1}>
               {windowedShells.map((shell) => {
                 const isSelected = shell.id === selectedShellId;
@@ -361,6 +382,9 @@ export function Repl({ db, username }: ReplProps) {
   const [shells, setShells] = useState<ShellSession[]>([]);
   const [foregroundShellId, setForegroundShellId] = useState<number | null>(null);
   const [inputHistory, setInputHistory] = useState<string[]>([]);
+  const [measureHistorySuggestions, setMeasureHistorySuggestions] = useState<string[]>([]);
+  const [shellHistorySuggestions, setShellHistorySuggestions] = useState<string[]>([]);
+  const [shellHistorySuggestionsLoading, setShellHistorySuggestionsLoading] = useState(false);
   const [hasSubmittedCommand, setHasSubmittedCommand] = useState(false);
   const [shellUiMode, setShellUiMode] = useState<ShellUiMode>("closed");
   const [selectedShellId, setSelectedShellId] = useState<number | null>(null);
@@ -370,6 +394,7 @@ export function Repl({ db, username }: ReplProps) {
   const shellExecutionsRef = useRef(new Map<number, PipedExecution>());
   const shellCancelRequestsRef = useRef(new Set<number>());
   const shellsRef = useRef<ShellSession[]>([]);
+  const shellHistoryLoadStartedRef = useRef(false);
 
   const system = getSystemInfo(username);
   const project = detectProject(process.cwd());
@@ -385,10 +410,44 @@ export function Repl({ db, username }: ReplProps) {
   const logShell =
     logShellId == null ? null : (visibleShells.find((shell) => shell.id === logShellId) ?? null);
   const isPromptActive = foregroundShell == null && shellUiMode === "closed";
+  const historySuggestions = useMemo(
+    () =>
+      mergeHistorySuggestions([
+        inputHistory,
+        measureHistorySuggestions,
+        shellHistorySuggestions,
+      ]),
+    [inputHistory, measureHistorySuggestions, shellHistorySuggestions],
+  );
 
   useEffect(() => {
     shellsRef.current = shells;
   }, [shells]);
+
+  useEffect(() => {
+    const result = historyCommand(currentDb, 400);
+    if (result.isErr()) {
+      setMeasureHistorySuggestions([]);
+      return;
+    }
+
+    setMeasureHistorySuggestions(result.value.map((row) => row.command));
+  }, [currentDb]);
+
+  const ensureShellHistorySuggestionsLoaded = useCallback(() => {
+    if (shellHistoryLoadStartedRef.current) {
+      return;
+    }
+
+    shellHistoryLoadStartedRef.current = true;
+    setShellHistorySuggestionsLoading(true);
+
+    void (async () => {
+      const suggestions = await loadShellHistorySuggestions();
+      setShellHistorySuggestions(suggestions);
+      setShellHistorySuggestionsLoading(false);
+    })();
+  }, []);
 
   useEffect(() => {
     if (visibleShells.length === 0) {
@@ -644,6 +703,8 @@ export function Repl({ db, username }: ReplProps) {
               "  Background shells: Down focuses the shells chip, Enter opens the picker",
               "  Slash menu: type / to browse, Up/Down to select, Enter to run,",
               "              Tab to prefill commands that take input",
+              "  History: Ctrl+R searches merged shell + measure history,",
+              "           Right/Tab accepts inline suggestions when slash matches are closed",
               "  Editing: arrows/home/end, Ctrl+A/E/B/F/D/W/U/K/L, Ctrl+P/N history,",
               "           Alt/Option+B/F/D, Alt/Option+Backspace/Delete, Ctrl/Alt+Left/Right",
               "",
@@ -954,7 +1015,9 @@ export function Repl({ db, username }: ReplProps) {
             output={foregroundShell.output || undefined}
           />
           <Box paddingLeft={2}>
-            <Text dimColor>{getRunningCommandStatus(foregroundShell.status === "stopping")}</Text>
+            <LoadingIndicator
+              label={getRunningCommandStatus(foregroundShell.status === "stopping")}
+            />
           </Box>
         </Box>
       )}
@@ -966,8 +1029,11 @@ export function Repl({ db, username }: ReplProps) {
             onSubmit={handleSubmit}
             onClear={clearScreen}
             onNavigateDownBoundary={focusShellBadge}
+            onHistorySearchOpen={ensureShellHistorySuggestionsLoaded}
             active={isPromptActive}
             history={inputHistory}
+            historySuggestions={historySuggestions}
+            historySearchLoading={shellHistorySuggestionsLoading}
             slashCommands={REPL_SLASH_COMMANDS}
           />
         </Box>
