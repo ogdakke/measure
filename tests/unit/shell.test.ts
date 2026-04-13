@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test";
 import { cancelPipedExecution, spawnPiped } from "../../src/runner/execute-piped.ts";
-import { shellCommand, buildCommand, quoteArg } from "../../src/runner/shell.ts";
+import { buildCommand, quoteArg, shellCommand, shouldUseShellForArgs } from "../../src/runner/shell.ts";
 
 describe("shellCommand", () => {
   test("returns sh -c on non-win32 platform", () => {
@@ -95,5 +95,18 @@ describe("buildCommand", () => {
   test("handles args with special characters", () => {
     const result = buildCommand(["echo", "hello world", "it's"]);
     expect(result).toBe("echo 'hello world' 'it'\\''s'");
+  });
+});
+
+describe("shouldUseShellForArgs", () => {
+  test("prefers direct argv execution for regular executables with spaced args", () => {
+    expect(shouldUseShellForArgs(["git", "commit", "-m", "foo bar"], "win32")).toBe(false);
+    expect(shouldUseShellForArgs(["bun", "test"], "linux")).toBe(false);
+  });
+
+  test("uses the shell for builtin commands and shell fragments", () => {
+    expect(shouldUseShellForArgs(["exit", "42"], "linux")).toBe(true);
+    expect(shouldUseShellForArgs(["echo", "hello"], "win32")).toBe(true);
+    expect(shouldUseShellForArgs(["bun test"], "linux")).toBe(true);
   });
 });

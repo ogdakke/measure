@@ -1,7 +1,6 @@
 import { Result } from "better-result";
 import type { Database } from "bun:sqlite";
-import { executeCommand } from "../runner/execute.ts";
-import { buildCommand } from "../runner/shell.ts";
+import { executeArgs } from "../runner/execute.ts";
 import { insertMeasurement } from "../db/queries.ts";
 import { getSystemInfo } from "../system/metadata.ts";
 import { detectProject } from "../system/project.ts";
@@ -29,7 +28,7 @@ export async function benchCommand(
   username: string,
   onProgress?: (event: BenchProgressEvent) => void,
 ): Promise<Result<BenchResult, CommandError | DatabaseError>> {
-  const command = buildCommand(args);
+  const command = args.join(" ");
   const system = getSystemInfo(username);
   const project = detectProject(process.cwd());
   const benchGroup = crypto.randomUUID();
@@ -37,7 +36,7 @@ export async function benchCommand(
   // Warmup runs
   for (let i = 0; i < warmup; i++) {
     onProgress?.({ type: "warmup", index: i, total: warmup });
-    const result = await executeCommand(command);
+    const result = await executeArgs(args);
     if (result.isErr()) {
       return Result.err<BenchResult, CommandError | DatabaseError>(result.error);
     }
@@ -47,7 +46,7 @@ export async function benchCommand(
   const runs: BenchRun[] = [];
 
   for (let i = 0; i < iterations; i++) {
-    const result = await executeCommand(command);
+    const result = await executeArgs(args);
     if (result.isErr()) {
       return Result.err<BenchResult, CommandError | DatabaseError>(result.error);
     }

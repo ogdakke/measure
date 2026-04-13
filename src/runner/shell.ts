@@ -1,5 +1,73 @@
 import { platform } from "node:os";
 
+const SHELL_CONTROL_TOKENS = new Set(["&&", "||", "|", ";", "&", ">", ">>", "<", "2>", "2>>"]);
+const POSIX_SHELL_BUILTINS = new Set([
+  ".",
+  ":",
+  "alias",
+  "bg",
+  "cd",
+  "eval",
+  "exec",
+  "exit",
+  "export",
+  "fg",
+  "jobs",
+  "read",
+  "set",
+  "source",
+  "times",
+  "trap",
+  "ulimit",
+  "umask",
+  "unalias",
+  "unset",
+  "wait",
+]);
+const WINDOWS_SHELL_BUILTINS = new Set([
+  "assoc",
+  "break",
+  "call",
+  "cd",
+  "chdir",
+  "cls",
+  "copy",
+  "date",
+  "del",
+  "dir",
+  "echo",
+  "endlocal",
+  "erase",
+  "exit",
+  "for",
+  "ftype",
+  "goto",
+  "if",
+  "md",
+  "mkdir",
+  "mklink",
+  "move",
+  "path",
+  "pause",
+  "popd",
+  "prompt",
+  "pushd",
+  "rd",
+  "ren",
+  "rename",
+  "rmdir",
+  "set",
+  "setlocal",
+  "shift",
+  "start",
+  "time",
+  "title",
+  "type",
+  "ver",
+  "verify",
+  "vol",
+]);
+
 export function shellCommand(command: string): string[] {
   if (platform() === "win32") {
     // /d disables AutoRun registry commands
@@ -18,6 +86,24 @@ export function shellCommand(command: string): string[] {
  */
 export function buildCommand(args: string[]): string {
   return args.map((arg) => quoteArg(arg, platform())).join(" ");
+}
+
+export function shouldUseShellForArgs(args: string[], os: string = platform()): boolean {
+  if (args.length === 0) {
+    return true;
+  }
+
+  if (args.some((arg) => SHELL_CONTROL_TOKENS.has(arg))) {
+    return true;
+  }
+
+  if (args.length === 1 && /[\s"'`$|&;<>()]/.test(args[0]!)) {
+    return true;
+  }
+
+  const commandName = args[0]!.toLowerCase();
+  const shellBuiltins = os === "win32" ? WINDOWS_SHELL_BUILTINS : POSIX_SHELL_BUILTINS;
+  return shellBuiltins.has(commandName);
 }
 
 export function quoteArg(arg: string, os: string = platform()): string {

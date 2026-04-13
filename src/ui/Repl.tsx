@@ -67,12 +67,31 @@ const SHELL_ACCENT_COLOR = "cyanBright";
 const MAX_SHELL_OUTPUT_CHARS = 120_000;
 const MAX_VISIBLE_SHELLS = 8;
 const LOG_PANEL_LINE_COUNT = 12;
+const SHELL_PIPE_DRAIN_TIMEOUT_MS = 500;
 
 let nextHistoryId = 0;
 let nextShellId = 0;
 
 function renderForTerminal(node: ReactNode): string {
   return renderToString(node, { columns: process.stdout.columns ?? 80 });
+}
+
+async function settleShellOutputReaders(
+  readers: Array<{ cancel: () => Promise<void> }>,
+  tasks: Promise<void>[],
+  timeoutMs = SHELL_PIPE_DRAIN_TIMEOUT_MS,
+) {
+  const outcome = await Promise.race([
+    Promise.allSettled(tasks).then(() => "done" as const),
+    Bun.sleep(timeoutMs).then(() => "timeout" as const),
+  ]);
+
+  if (outcome === "done") {
+    return;
+  }
+
+  await Promise.allSettled(readers.map((reader) => reader.cancel()));
+  await Promise.allSettled(tasks);
 }
 
 function appendShellOutput(output: string, chunk: string): string {
@@ -442,12 +461,18 @@ export function Repl({ db, username }: ReplProps) {
       return;
     }
 
-    updateShell(foregroundShellId, (shell) => ({
-      ...shell,
+    const shell = shellsRef.current.find((entry) => entry.id === foregroundShellId);
+    if (!shell || shell.isBackground || shell.status !== "running") {
+      return;
+    }
+
+    updateShell(foregroundShellId, (current) => ({
+      ...current,
       isBackground: true,
       collectMeasurement: false,
     }));
     setForegroundShellId(null);
+    setShellViewNowNs(Bun.nanoseconds());
   }, [foregroundShellId, updateShell]);
 
   const focusShellBadge = useCallback(() => {
@@ -815,12 +840,13 @@ export function Repl({ db, username }: ReplProps) {
         })();
 
         const exitCode = await execution.proc.exited;
-        await Promise.all([stdoutTask, stderrTask]);
+        await settleShellOutputReaders([stdoutReader, stderrReader], [stdoutTask, stderrTask]);
 
         const endedAtNs = Bun.nanoseconds();
         const shell = shellsRef.current.find((entry) => entry.id === shellId);
         const wasCancelled = shellCancelRequestsRef.current.has(shellId);
         const wasBackgrounded = shell?.isBackground ?? false;
+        const shouldCollectMeasurement = shell?.collectMeasurement ?? true;
 
         shellExecutionsRef.current.delete(shellId);
         shellCancelRequestsRef.current.delete(shellId);
@@ -843,7 +869,7 @@ export function Repl({ db, username }: ReplProps) {
           return;
         }
 
-        if (wasBackgrounded) {
+        if (wasBackgrounded && !shouldCollectMeasurement) {
           updateShell(shellId, (current) => ({
             ...current,
             status: exitCode === 0 ? "exited" : "failed",
