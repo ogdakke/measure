@@ -11,10 +11,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ogdakke/measure"
+    "url": "git+https://github.com/ogdakke/measure.git"
   },
   "bin": {
-    "measure": "./dist/index.js"
+    "measure": "dist/index.js"
   },
   "files": [
     "dist/**/*",
