@@ -1,5 +1,11 @@
 # @ogdakke/measure
 
+## 0.0.3
+
+### Patch Changes
+
+- fbfa1b7: preserve quoted arguments on Windows
+
 ## 0.0.2
 
 ### Patch Changes
