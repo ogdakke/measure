@@ -35,4 +35,21 @@ describe("runCommand", () => {
     expect(Result.isOk(result)).toBe(true);
     expect(result.unwrap().exitCode).toBe(42);
   });
+
+  test("preserves spaced argv values for direct command execution", async () => {
+    const result = await runCommand(
+      db,
+      [
+        "bun",
+        "-e",
+        "process.exit(process.argv[1] === 'foo bar' ? 0 : 7)",
+        "--",
+        "foo bar",
+      ],
+      "tester",
+    );
+
+    expect(Result.isOk(result)).toBe(true);
+    expect(result.unwrap().exitCode).toBe(0);
+  });
 });
