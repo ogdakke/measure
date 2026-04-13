@@ -1,6 +1,7 @@
 import { Result } from "better-result";
 import type { Database } from "bun:sqlite";
 import { executeCommand } from "../runner/execute.ts";
+import { buildCommand } from "../runner/shell.ts";
 import { insertMeasurement } from "../db/queries.ts";
 import { getSystemInfo } from "../system/metadata.ts";
 import { detectProject } from "../system/project.ts";
@@ -28,7 +29,7 @@ export async function benchCommand(
   username: string,
   onProgress?: (event: BenchProgressEvent) => void,
 ): Promise<Result<BenchResult, CommandError | DatabaseError>> {
-  const command = args.join(" ");
+  const command = buildCommand(args);
   const system = getSystemInfo(username);
   const project = detectProject(process.cwd());
   const benchGroup = crypto.randomUUID();
