@@ -2,6 +2,9 @@
 
 Measure and compare command execution times across machines.
 
+> [!IMPORTANT]
+> This tool makes no guarantees on absolute timings of commands, and is strictly intended for comparing similar commands across multiple different machines.
+
 ```bash
 bunx @ogdakke/measure --help
 ```
@@ -10,10 +13,16 @@ bunx @ogdakke/measure --help
 
 - [Bun](https://bun.com) `>=1.3.12`
 
+If you are restricted to npm usage only, you can install bun with
+```bash
+npm i -g bun
+```
+
 ## Install
 
 ```bash
-bun add -g @ogdakke/measure
+bun add -g @ogdakke/measure@latest
+measure --help
 ```
 
 Or run it without installing globally:
@@ -22,7 +31,7 @@ Or run it without installing globally:
 bunx @ogdakke/measure --help
 ```
 
-`bunx` is the supported runner. `npx` may work on machines that already have Bun installed, but this package is built for the Bun runtime.
+`bunx` is the preferred runner. `npx` works on machines that already have Bun installed.
 
 ## Usage
 
@@ -68,7 +77,7 @@ bun install
 Run locally:
 
 ```bash
-bun run src/index.ts
+bun dev
 ```
 
 Run tests:
