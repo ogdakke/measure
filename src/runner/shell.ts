@@ -68,14 +68,24 @@ const WINDOWS_SHELL_BUILTINS = new Set([
   "vol",
 ]);
 
-export function shellCommand(command: string): string[] {
-  if (platform() === "win32") {
+export function shellCommand(command: string, os: string = platform()): string[] {
+  if (os === "win32") {
     // /d disables AutoRun registry commands
-    // /s with /c "..." strips the outermost quotes and runs the content as-is,
-    // preserving inner quotes (e.g. git commit -m "foo bar")
-    return ["cmd", "/d", "/s", "/c", `"${command}"`];
+    // /s keeps cmd.exe quote handling predictable when Bun quotes this argv item.
+    return ["cmd", "/d", "/s", "/c", command];
   }
   return ["sh", "-c", command];
+}
+
+export function spawnCommand(command: string, os: string = platform()): string[] {
+  if (os === "win32") {
+    const args = parseWindowsCommandArgs(command);
+    if (args && !shouldUseShellForArgs(args, os)) {
+      return args;
+    }
+  }
+
+  return shellCommand(command, os);
 }
 
 /**
@@ -104,6 +114,73 @@ export function shouldUseShellForArgs(args: string[], os: string = platform()): 
   const commandName = args[0]!.toLowerCase();
   const shellBuiltins = os === "win32" ? WINDOWS_SHELL_BUILTINS : POSIX_SHELL_BUILTINS;
   return shellBuiltins.has(commandName);
+}
+
+function parseWindowsCommandArgs(command: string): string[] | null {
+  const trimmed = command.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  if (hasWindowsShellSyntax(trimmed)) {
+    return null;
+  }
+
+  const args: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  let tokenStarted = false;
+
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const char = trimmed[index]!;
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      tokenStarted = true;
+      continue;
+    }
+
+    if (!inQuotes && /\s/.test(char)) {
+      if (tokenStarted) {
+        args.push(current);
+        current = "";
+        tokenStarted = false;
+      }
+      continue;
+    }
+
+    current += char;
+    tokenStarted = true;
+  }
+
+  if (inQuotes) {
+    return null;
+  }
+
+  if (tokenStarted) {
+    args.push(current);
+  }
+
+  return args;
+}
+
+function hasWindowsShellSyntax(command: string): boolean {
+  let inQuotes = false;
+
+  for (let index = 0; index < command.length; index += 1) {
+    const char = command[index]!;
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (!inQuotes && /[&|<>^%!]/.test(char)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function quoteArg(arg: string, os: string = platform()): string {
