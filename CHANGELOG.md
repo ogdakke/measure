@@ -1,5 +1,11 @@
 # @ogdakke/measure
 
+## 0.1.1
+
+### Patch Changes
+
+- 0617c83: Fix windows REPL quoting
+
 ## 0.1.0
 
 ### Minor Changes
