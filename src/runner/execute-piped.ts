@@ -1,6 +1,6 @@
 import type { Subprocess } from "bun";
 import { platform } from "node:os";
-import { shellCommand } from "./shell.ts";
+import { spawnCommand } from "./shell.ts";
 import type { ExecutionResult } from "../types.ts";
 
 export interface PipedExecution {
@@ -10,7 +10,7 @@ export interface PipedExecution {
 
 /** Spawn a command with piped stdout/stderr for use in the REPL (where Ink owns the terminal). */
 export function spawnPiped(command: string): PipedExecution {
-  const cmd = shellCommand(command);
+  const cmd = spawnCommand(command);
   const startNs = Bun.nanoseconds();
   const proc = Bun.spawn(cmd, {
     stdout: "pipe",

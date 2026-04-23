@@ -1,6 +1,12 @@
 import { test, expect, describe } from "bun:test";
 import { cancelPipedExecution, spawnPiped } from "../../src/runner/execute-piped.ts";
-import { buildCommand, quoteArg, shellCommand, shouldUseShellForArgs } from "../../src/runner/shell.ts";
+import {
+  buildCommand,
+  quoteArg,
+  shellCommand,
+  shouldUseShellForArgs,
+  spawnCommand,
+} from "../../src/runner/shell.ts";
 
 describe("shellCommand", () => {
   test("returns sh -c on non-win32 platform", () => {
@@ -13,6 +19,10 @@ describe("shellCommand", () => {
     const cmd = 'npm run build && echo "done"';
     const result = shellCommand(cmd);
     expect(result[2]).toBe(cmd);
+  });
+
+  test("does not wrap the Windows command string in literal quotes", () => {
+    expect(shellCommand("npm i", "win32")).toEqual(["cmd", "/d", "/s", "/c", "npm i"]);
   });
 
   test("can cancel a long-running piped command", async () => {
@@ -29,6 +39,41 @@ describe("shellCommand", () => {
 
     expect(exitCode).not.toBe(timeout);
     expect(typeof exitCode).toBe("number");
+  });
+});
+
+describe("spawnCommand", () => {
+  test("directly spawns plain Windows commands", () => {
+    expect(spawnCommand("npm i", "win32")).toEqual(["npm", "i"]);
+  });
+
+  test("preserves quoted Windows arguments without cmd.exe", () => {
+    expect(spawnCommand('git commit -m "foo bar"', "win32")).toEqual([
+      "git",
+      "commit",
+      "-m",
+      "foo bar",
+    ]);
+  });
+
+  test("falls back to cmd.exe for Windows shell syntax", () => {
+    expect(spawnCommand("npm i && echo done", "win32")).toEqual([
+      "cmd",
+      "/d",
+      "/s",
+      "/c",
+      "npm i && echo done",
+    ]);
+  });
+
+  test("falls back to cmd.exe for Windows shell builtins", () => {
+    expect(spawnCommand("echo hello", "win32")).toEqual([
+      "cmd",
+      "/d",
+      "/s",
+      "/c",
+      "echo hello",
+    ]);
   });
 });
 

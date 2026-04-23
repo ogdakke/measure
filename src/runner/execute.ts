@@ -1,7 +1,7 @@
 import { Result } from "better-result";
 import { CommandError } from "../errors.ts";
 import type { ExecutionResult } from "../types.ts";
-import { buildCommand, shellCommand, shouldUseShellForArgs } from "./shell.ts";
+import { buildCommand, shouldUseShellForArgs, spawnCommand } from "./shell.ts";
 
 function createExecutionResult(
   proc: ReturnType<typeof Bun.spawn>,
@@ -44,7 +44,7 @@ export async function executeCommand(
   command: string,
   displayCommand = command,
 ): Promise<Result<ExecutionResult, CommandError>> {
-  return executeSpawnedCommand(shellCommand(command), displayCommand);
+  return executeSpawnedCommand(spawnCommand(command), displayCommand);
 }
 
 export async function executeArgs(args: string[]): Promise<Result<ExecutionResult, CommandError>> {
